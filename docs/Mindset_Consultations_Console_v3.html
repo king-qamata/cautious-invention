@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mindset Healthcare — Consultations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-900:#101B30; --navy-800:#16233F; --navy-700:#1B2A4A;
+    --mist:#9FB0C8; --mist-dim:#7789A6;
+    --bg:#F4F6F9; --card:#FFFFFF; --line:#E4E9F0;
+    --ink:#16233F; --ink-soft:#5B6B84;
+    --blue:#2E86D8; --teal:#2E9E88; --red:#D6394A; --amber:#C98A1E; --green:#2E9E5B; --slate:#6B7A93;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:'IBM Plex Sans', Arial, sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  button{font-family:inherit;cursor:pointer;}
+  select,textarea,input{font-family:inherit;}
+
+  .app{display:grid;grid-template-columns:230px 1fr;min-height:100vh;}
+
+  .sidebar{background:var(--navy-800);color:#fff;padding:26px 18px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+  .brand{display:flex;align-items:center;gap:9px;padding:4px 4px 18px;}
+  .brand-word{font-family:'Lora', serif;font-weight:700;font-size:17px;}
+  .brand-word .set,.brand-word .care{color:var(--red);}
+  .nav{display:flex;flex-direction:column;gap:2px;}
+  .nav a{padding:10px 13px;border-radius:9px;font-size:14px;color:var(--mist);display:flex;align-items:center;gap:9px;border-left:3px solid transparent;text-decoration:none;}
+  .nav a:hover{color:#fff;background:rgba(255,255,255,0.05);}
+  .nav a.active{color:#fff;background:rgba(255,255,255,0.07);border-left:3px solid var(--red);font-weight:600;}
+  .nav-dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.55;}
+  .sidebar-foot{margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);font-size:11.5px;color:var(--mist-dim);line-height:1.6;}
+
+  .main{display:flex;flex-direction:column;min-width:0;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 28px;border-bottom:1px solid var(--line);background:var(--card);flex-wrap:wrap;}
+  .topbar h1{font-family:'Lora', serif;font-size:22px;margin:0;font-weight:600;}
+  .topbar p{margin:3px 0 0;color:var(--ink-soft);font-size:13px;}
+  .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .status-pill{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);}
+  .status-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--green);}
+  .user-chip{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border:1px solid var(--line);border-radius:30px;font-size:12.5px;color:var(--ink-soft);}
+  .user-chip .avatar{width:26px;height:26px;border-radius:50%;background:var(--navy-700);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;}
+  .user-chip .role{color:var(--ink);font-weight:600;}
+  .logout-btn{padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);font-size:12.5px;font-weight:600;}
+
+  /* ---- SLA metrics strip (Architecture Risk Note: instrument these from day one) ---- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:18px 28px 0;}
+  .stat-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .stat-card .label{font-size:11px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+  .stat-card .value{font-family:'Lora', serif;font-size:22px;font-weight:600;color:var(--ink);}
+  .stat-card .sub{font-size:11px;color:var(--mist-dim);margin-top:2px;}
+  .stat-card.warn .value{color:var(--amber);}
+
+  .tabbar{display:none;gap:6px;padding:14px 16px 0;}
+  .tabbtn{flex:1;padding:10px 8px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:600;color:var(--ink-soft);text-align:center;}
+  .tabbtn.is-active{background:var(--navy-800);color:#fff;border-color:var(--navy-800);}
+
+  .workspace{display:grid;grid-template-columns:320px 1fr;gap:20px;padding:20px 28px 32px;align-items:start;}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;}
+  .panel h2{font-family:'Lora', serif;font-size:17px;margin:0 0 16px;font-weight:600;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .field textarea,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px;color:var(--ink);background:var(--bg);}
+  .field textarea{resize:vertical;min-height:64px;}
+  .form-actions{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;}
+  .btn{padding:11px 16px;border-radius:10px;font-size:13.5px;font-weight:600;border:none;flex:1;text-align:center;}
+  .btn-primary{background:var(--navy-800);color:#fff;}
+  .btn-secondary{background:var(--bg);color:var(--ink-soft);border:1px solid var(--line);}
+
+  .queue-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .queue-head h2{margin:0;}
+  .queue-actions{display:flex;gap:8px;}
+  .pillbtn{padding:8px 14px;border-radius:20px;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);font-size:12.5px;font-weight:600;}
+  .pillbtn.is-on{background:rgba(214,57,74,.1);color:var(--red);border-color:rgba(214,57,74,.3);}
+
+  .queue{display:flex;flex-direction:column;gap:14px;}
+  .con-card{border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .con-card.is-open-claim{border-color:var(--blue);box-shadow:0 4px 16px rgba(46,134,216,.08);}
+  .con-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .con-id{font-weight:700;font-size:14.5px;}
+  .status-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.02em;}
+  .status-badge.requested{background:rgba(107,122,147,.12);color:var(--slate);}
+  .status-badge.accepted{background:rgba(46,134,216,.12);color:var(--blue);}
+  .status-badge.progress{background:rgba(46,158,136,.12);color:var(--teal);}
+  .status-badge.completed{background:rgba(46,158,91,.12);color:var(--green);}
+
+  /* ---- state machine stepper (Architecture Risk Note: state transitions should be an explicit, visible machine) ---- */
+  .stepper{display:flex;align-items:center;margin:10px 0 12px;}
+  .step{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;}
+  .step .dot{width:16px;height:16px;border-radius:50%;background:var(--line);border:2px solid var(--line);z-index:1;}
+  .step .lbl{font-size:9.5px;font-weight:600;color:var(--mist-dim);margin-top:5px;text-transform:uppercase;letter-spacing:.02em;}
+  .step .bar{position:absolute;top:7px;left:50%;width:100%;height:2px;background:var(--line);z-index:0;}
+  .step:last-child .bar{display:none;}
+  .step.done .dot{background:var(--teal);border-color:var(--teal);}
+  .step.done .bar{background:var(--teal);}
+  .step.done .lbl{color:var(--teal);}
+  .step.current .dot{background:var(--card);border-color:var(--navy-800);box-shadow:0 0 0 3px rgba(22,35,63,.12);}
+  .step.current .lbl{color:var(--navy-800);}
+
+  .con-desc{font-size:13.5px;color:var(--ink);margin:2px 0 10px;}
+  .con-meta{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+  .con-meta-row{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .tier-chip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;}
+  .tier-chip.normal{background:rgba(46,134,216,.1);color:var(--blue);}
+  .tier-chip.priority{background:rgba(46,158,136,.1);color:var(--teal);}
+  .tier-chip.super{background:rgba(214,57,74,.1);color:var(--red);}
+
+  /* ---- payment ledger chip (Architecture Risk Note: independent ledger, distinct from gateway/session state) ---- */
+  .ledger-chip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-flex;align-items:center;gap:4px;}
+  .ledger-chip.hold{background:rgba(201,138,30,.12);color:var(--amber);}
+  .ledger-chip.captured{background:rgba(46,158,91,.12);color:var(--green);}
+  .ledger-chip.released{background:rgba(107,122,147,.12);color:var(--slate);}
+
+  /* ---- verification badge: async, never blocks the primary action ---- */
+  .verify-badge{font-size:10.5px;color:var(--mist-dim);display:inline-flex;align-items:center;gap:4px;}
+  .verify-badge.pass{color:var(--green);}
+
+  /* ---- durable claim countdown ---- */
+  .countdown{display:flex;align-items:center;gap:8px;background:rgba(201,138,30,.08);border:1px solid rgba(201,138,30,.25);border-radius:10px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);}
+  .countdown b{font-variant-numeric:tabular-nums;}
+  .countdown .exp{color:var(--ink-soft);font-weight:500;margin-left:auto;font-size:11px;}
+
+  .comm-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 14px;border-radius:10px;border:none;color:#fff;font-size:13.5px;font-weight:700;margin-bottom:10px;}
+  .comm-btn[data-channel="text"]{background:var(--blue);}
+  .comm-btn[data-channel="voice"]{background:var(--teal);}
+  .comm-btn[data-channel="video"]{background:var(--red);}
+  .comm-btn[data-channel="claim"]{background:var(--navy-800);}
+  .comm-btn[disabled]{background:var(--line);color:var(--mist-dim);cursor:not-allowed;}
+  .comm-btn .sub{font-weight:500;font-size:11px;opacity:.85;margin-left:4px;}
+
+  .con-row2{display:flex;gap:8px;flex-wrap:wrap;}
+  .row2-btn{flex:1;min-width:110px;padding:9px 10px;border-radius:9px;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--ink-soft);}
+  .row2-btn.primary{background:var(--navy-800);color:#fff;border-color:var(--navy-800);}
+
+  .more-wrap{margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;}
+  .more-toggle{background:none;border:none;color:var(--ink-soft);font-size:12px;font-weight:600;padding:2px 0;display:flex;align-items:center;gap:4px;}
+  .more-toggle svg{transition:transform .15s ease;}
+  .more-toggle.is-open svg{transform:rotate(180deg);}
+  .more-actions{display:none;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);width:100%;}
+  .more-actions.is-open{display:flex;}
+  .chip-btn{padding:8px 12px;border-radius:9px;font-size:12px;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);}
+  .chip-btn.warn{color:var(--red);border-color:rgba(214,57,74,.3);}
+
+  /* ---- append-only event log (Architecture Risk Note: audit trail should be append-only by construction) ---- */
+  .log-list{display:none;list-style:none;margin:10px 0 0;padding:10px 0 0;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-soft);width:100%;}
+  .log-list.is-open{display:block;}
+  .log-list li{padding:4px 0;display:flex;gap:8px;}
+  .log-list li .t{color:var(--mist-dim);flex:0 0 auto;font-variant-numeric:tabular-nums;}
+
+  .comms-desk{margin:0 28px 32px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;}
+  .comms-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .comms-head h2{font-family:'Lora', serif;font-size:17px;margin:0;font-weight:600;}
+  .comms-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .comms-grid .field.full{grid-column:1 / -1;}
+  .log-empty{font-size:12.5px;color:var(--mist-dim);margin-top:14px;}
+
+  @media (max-width:980px){
+    .workspace{grid-template-columns:1fr;}
+    .comms-grid{grid-template-columns:1fr;}
+    .stats{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (max-width:840px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{position:relative;height:auto;flex-direction:row;align-items:center;padding:14px 18px;}
+    .sidebar-foot{display:none;}
+    .nav{flex-direction:row;margin-left:auto;gap:0;}
+    .nav a span.label{display:none;}
+    .topbar{padding:16px 18px;}
+    .stats{padding:14px 16px 0;}
+    .workspace{padding:16px 16px 24px;gap:14px;}
+    .comms-desk{margin:0 16px 24px;}
+    .tabbar{display:flex;}
+    .panel.request-panel,.panel.queue-panel{display:none;}
+    .panel.request-panel.is-active,.panel.queue-panel.is-active{display:block;}
+    .comms-desk{display:none;}
+    .comms-desk.is-active{display:block;}
+    .stat-card .value{font-size:19px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <svg width="26" height="12" viewBox="0 0 160 76" fill="none">
+        <path d="M2 40 L34 40 L54 8 L65 34" stroke="#2E86D8" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M85 34 L96 8 L116 40 L154 40" stroke="#D6394A" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="158" cy="40" r="6" fill="#D6394A"/>
+      </svg>
+      <span class="brand-word">Mind<span class="set">set</span></span>
+    </div>
+    <nav class="nav">
+      <a href="#"><span class="nav-dot"></span><span class="label">Campaigns</span></a>
+      <a href="#"><span class="nav-dot"></span><span class="label">Intake</span></a>
+      <a class="active" href="#"><span class="nav-dot"></span><span class="label">Consultations</span></a>
+      <a href="#"><span class="nav-dot"></span><span class="label">Providers</span></a>
+      <a href="#"><span class="nav-dot"></span><span class="label">Reports</span></a>
+    </nav>
+    <div class="sidebar-foot">Nigeria care network<br>v3 · Consultations console</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Consultations</h1>
+        <p>Run Section 3 workflows: request, claim, escalate, complete, and SLA operations.</p>
+      </div>
+      <div class="topbar-right">
+        <span class="status-pill"><span class="dot"></span>Demo Clinician (clinician)</span>
+        <span class="user-chip"><span class="avatar">DC</span><span><span class="role">clinician</span> · clinician@mindset.local</span></span>
+        <button class="logout-btn">Logout</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="label">Median claim time</div>
+        <div class="value">54s</div>
+        <div class="sub">Section 6.1 SLA basis</div>
+      </div>
+      <div class="stat-card warn">
+        <div class="label">Hold release rate</div>
+        <div class="value">6.2%</div>
+        <div class="sub">Requests expiring unclaimed</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Active consultations</div>
+        <div class="value">4</div>
+        <div class="sub">Across all tiers</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Claim conflicts today</div>
+        <div class="value">2</div>
+        <div class="sub">Resolved atomically, no double-booking</div>
+      </div>
+    </div>
+
+    <div class="tabbar" id="tabbar">
+      <button class="tabbtn is-active" data-tab="request">New Request</button>
+      <button class="tabbtn" data-tab="queue">Queue</button>
+      <button class="tabbtn" data-tab="comms">Comms Desk</button>
+    </div>
+
+    <div class="workspace">
+      <section class="panel request-panel is-active" data-panel="request">
+        <h2>Create Consultation Request</h2>
+        <div class="field">
+          <label>Requested need</label>
+          <textarea placeholder="Describe the consultation need">Chest tightness during light exercise, follow-up review</textarea>
+        </div>
+        <div class="field">
+          <label>Tier</label>
+          <select><option>Normal</option><option>Priority</option><option>Super Priority</option></select>
+        </div>
+        <div class="field">
+          <label>Patient requested communication</label>
+          <select><option>Voice + text</option><option>Voice call</option><option>Video call</option></select>
+        </div>
+        <div class="field">
+          <label>Procedure</label>
+          <select><option>Echocardiography</option><option>General review</option><option>Follow-up</option></select>
+        </div>
+        <div class="field">
+          <label>Payment method</label>
+          <select><option>Card</option><option>Bank transfer</option><option>USSD</option></select>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary">Submit consultation</button>
+          <button class="btn btn-secondary">Release unclaimed</button>
+        </div>
+      </section>
+
+      <section class="panel queue-panel" data-panel="queue">
+        <div class="queue-head">
+          <h2>Consultation Queue</h2>
+          <div class="queue-actions">
+            <button class="pillbtn is-on">Urgent mode</button>
+            <button class="pillbtn">Refresh</button>
+          </div>
+        </div>
+
+        <div class="queue">
+
+          <!-- CON-2026-0005 — REQUESTED, unclaimed, durable countdown visible -->
+          <article class="con-card is-open-claim">
+            <div class="con-top">
+              <span class="con-id">CON-2026-0005</span>
+              <span class="status-badge requested">REQUESTED</span>
+            </div>
+            <div class="stepper">
+              <div class="step current"><span class="bar"></span><span class="dot"></span><span class="lbl">Requested</span></div>
+              <div class="step"><span class="bar"></span><span class="dot"></span><span class="lbl">Accepted</span></div>
+              <div class="step"><span class="bar"></span><span class="dot"></span><span class="lbl">Live</span></div>
+              <div class="step"><span class="dot"></span><span class="lbl">Done</span></div>
+            </div>
+            <p class="con-desc">Sudden onset lower back pain, unable to stand fully upright</p>
+            <div class="con-meta">
+              <span class="con-meta-row">New Patient · Orthopedics · General review</span>
+              <span class="con-meta-row">
+                <span class="tier-chip normal">Normal</span>
+                <span class="ledger-chip hold">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="9"/></svg>
+                  Hold placed ₦1,000
+                </span>
+                <span class="verify-badge">Verification: pending (async)</span>
+              </span>
+            </div>
+
+            <div class="countdown">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              <span>Broadcast window: <b>01:47</b> remaining · 3 doctors viewing</span>
+              <span class="exp">expires 14:09:32</span>
+            </div>
+
+            <button class="comm-btn" data-channel="claim">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              Claim this consultation
+            </button>
+
+            <div class="more-wrap">
+              <button class="more-toggle">More actions <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <button class="more-toggle log-toggle">Event log <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <div class="more-actions">
+                <button class="chip-btn">Open interaction desk</button>
+                <button class="chip-btn warn">Cancel</button>
+              </div>
+              <ul class="log-list">
+                <li><span class="t">14:07:32</span><span>Request created · REQUESTED · hold placed ₦1,000</span></li>
+                <li><span class="t">14:07:33</span><span>Broadcast to 6 eligible doctors</span></li>
+                <li><span class="t">14:08:10</span><span>Claim attempt by Dr. Femi Okon — rejected, 409 conflict (already open)</span></li>
+              </ul>
+            </div>
+          </article>
+
+          <!-- CON-2026-0006 — Normal tier, voice+text, in progress -->
+          <article class="con-card">
+            <div class="con-top">
+              <span class="con-id">CON-2026-0006</span>
+              <span class="status-badge progress">IN_PROGRESS</span>
+            </div>
+            <div class="stepper">
+              <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">Requested</span></div>
+              <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">Accepted</span></div>
+              <div class="step current"><span class="bar"></span><span class="dot"></span><span class="lbl">Live</span></div>
+              <div class="step"><span class="dot"></span><span class="lbl">Done</span></div>
+            </div>
+            <p class="con-desc">Chest tightness during light exercise, follow-up review</p>
+            <div class="con-meta">
+              <span class="con-meta-row">Demo Patient · Cardiology · Echocardiography</span>
+              <span class="con-meta-row">
+                <span class="tier-chip normal">Normal</span>
+                <span class="ledger-chip hold">Hold placed ₦1,000</span>
+                <span class="verify-badge pass">Verification: passed</span>
+              </span>
+            </div>
+
+            <button class="comm-btn" data-channel="text">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Start Text Chat <span class="sub">· patient requested voice+text</span>
+            </button>
+
+            <div class="con-row2">
+              <button class="row2-btn primary">Complete</button>
+              <button class="row2-btn">Escalate</button>
+            </div>
+
+            <div class="more-wrap">
+              <button class="more-toggle">More actions <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <button class="more-toggle log-toggle">Event log <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <div class="more-actions">
+                <button class="chip-btn">Switch to voice call</button>
+                <button class="chip-btn">Close session</button>
+                <button class="chip-btn">Open interaction desk</button>
+                <button class="chip-btn warn">Cancel</button>
+              </div>
+              <ul class="log-list">
+                <li><span class="t">13:41:02</span><span>Request created · REQUESTED · hold placed ₦1,000</span></li>
+                <li><span class="t">13:41:44</span><span>Claimed by Dr. Amanda Lee — DOCTOR_ACCEPTED</span></li>
+                <li><span class="t">13:42:01</span><span>Session started · voice+text · IN_PROGRESS</span></li>
+              </ul>
+            </div>
+          </article>
+
+          <!-- CON-2026-0007 — Priority tier, voice call, in progress -->
+          <article class="con-card">
+            <div class="con-top">
+              <span class="con-id">CON-2026-0007</span>
+              <span class="status-badge progress">IN_PROGRESS</span>
+            </div>
+            <div class="stepper">
+              <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">Requested</span></div>
+              <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">Accepted</span></div>
+              <div class="step current"><span class="bar"></span><span class="dot"></span><span class="lbl">Live</span></div>
+              <div class="step"><span class="dot"></span><span class="lbl">Done</span></div>
+            </div>
+            <p class="con-desc">Recurrent migraine, requesting urgent review</p>
+            <div class="con-meta">
+              <span class="con-meta-row">Demo Patient · Cardiology · Echocardiography</span>
+              <span class="con-meta-row">
+                <span class="tier-chip priority">Priority</span>
+                <span class="ledger-chip hold">Hold placed ₦5,000</span>
+                <span class="verify-badge pass">Verification: passed</span>
+              </span>
+            </div>
+
+            <button class="comm-btn" data-channel="voice">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.67 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.31 1.85.54 2.81.67A2 2 0 0 1 22 16.92z"/></svg>
+              Start Voice Call <span class="sub">· patient requested voice call</span>
+            </button>
+
+            <div class="con-row2">
+              <button class="row2-btn primary">Complete</button>
+              <button class="row2-btn">Escalate</button>
+            </div>
+
+            <div class="more-wrap">
+              <button class="more-toggle">More actions <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <button class="more-toggle log-toggle">Event log <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <div class="more-actions">
+                <button class="chip-btn">Switch to video call</button>
+                <button class="chip-btn">Close session</button>
+                <button class="chip-btn">Open interaction desk</button>
+                <button class="chip-btn warn">Cancel</button>
+              </div>
+              <ul class="log-list">
+                <li><span class="t">13:50:12</span><span>Request created · REQUESTED · hold placed ₦5,000</span></li>
+                <li><span class="t">13:50:39</span><span>Claim attempt by Dr. Bisi Adeyemi — rejected, 409 conflict</span></li>
+                <li><span class="t">13:50:40</span><span>Claimed by Dr. Sarah Chen — DOCTOR_ACCEPTED</span></li>
+                <li><span class="t">13:51:05</span><span>Session started · voice call · IN_PROGRESS</span></li>
+              </ul>
+            </div>
+          </article>
+
+          <!-- CON-2026-0008 — Super Priority tier, video, doctor accepted (not yet live) -->
+          <article class="con-card">
+            <div class="con-top">
+              <span class="con-id">CON-2026-0008</span>
+              <span class="status-badge accepted">DOCTOR_ACCEPTED</span>
+            </div>
+            <div class="stepper">
+              <div class="step done"><span class="bar"></span><span class="dot"></span><span class="lbl">Requested</span></div>
+              <div class="step current"><span class="bar"></span><span class="dot"></span><span class="lbl">Accepted</span></div>
+              <div class="step"><span class="bar"></span><span class="dot"></span><span class="lbl">Live</span></div>
+              <div class="step"><span class="dot"></span><span class="lbl">Done</span></div>
+            </div>
+            <p class="con-desc">Suspected fracture after fall, needs visual assessment</p>
+            <div class="con-meta">
+              <span class="con-meta-row">Demo Patient · Orthopedics · Imaging review</span>
+              <span class="con-meta-row">
+                <span class="tier-chip super">Super Priority</span>
+                <span class="ledger-chip hold">Hold placed ₦10,000</span>
+                <span class="verify-badge">Verification: pending (async)</span>
+              </span>
+            </div>
+
+            <button class="comm-btn" data-channel="video" disabled title="Session opens once the consultation moves to IN_PROGRESS">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+              Video call available at session start
+            </button>
+
+            <div class="con-row2">
+              <button class="row2-btn primary">Move to in-progress</button>
+              <button class="row2-btn">Escalate</button>
+            </div>
+
+            <div class="more-wrap">
+              <button class="more-toggle">More actions <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <button class="more-toggle log-toggle">Event log <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+              <div class="more-actions">
+                <button class="chip-btn">Close session</button>
+                <button class="chip-btn">Open interaction desk</button>
+                <button class="chip-btn warn">Cancel</button>
+              </div>
+              <ul class="log-list">
+                <li><span class="t">14:02:18</span><span>Request created · REQUESTED · hold placed ₦10,000</span></li>
+                <li><span class="t">14:02:51</span><span>Claimed by Dr. James Wilson — DOCTOR_ACCEPTED</span></li>
+              </ul>
+            </div>
+          </article>
+
+        </div>
+      </section>
+    </div>
+
+    <section class="comms-desk" data-panel="comms">
+      <div class="comms-head">
+        <h2>Communication Desk</h2>
+        <button class="pillbtn">Refresh transcript</button>
+      </div>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 16px;">Capture channel-specific interaction events for voice-text, voice-call, and video-call sessions.</p>
+      <div class="comms-grid">
+        <div class="field"><label>Consultation</label><select><option>CON-2026-0007 · IN_PROGRESS · priority</option></select></div>
+        <div class="field"><label>Session</label><select><option>voice call · active</option></select></div>
+        <div class="field"><label>Interaction type</label><select><option>patient message</option></select></div>
+        <div class="field"><label>Session marker</label><select><option>ringing</option></select></div>
+        <div class="field full"><label>Message / note</label><textarea placeholder="Enter transcript note, text message, or clinical note"></textarea></div>
+        <div class="field full"><button class="btn btn-primary" style="width:100%;">Record interaction</button></div>
+      </div>
+      <p class="log-empty">No interactions recorded for this session yet.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+  const tabbtns = document.querySelectorAll('.tabbtn');
+  tabbtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabbtns.forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      document.querySelectorAll('[data-panel]').forEach(p => p.classList.remove('is-active'));
+      document.querySelector('[data-panel="' + btn.dataset.tab + '"]').classList.add('is-active');
+    });
+  });
+
+  document.querySelectorAll('.more-toggle:not(.log-toggle)').forEach(t => {
+    t.addEventListener('click', () => {
+      t.classList.toggle('is-open');
+      t.parentElement.querySelector('.more-actions').classList.toggle('is-open');
+    });
+  });
+  document.querySelectorAll('.log-toggle').forEach(t => {
+    t.addEventListener('click', () => {
+      t.classList.toggle('is-open');
+      t.parentElement.querySelector('.log-list').classList.toggle('is-open');
+    });
+  });
+</script>
+</body>
+</html>

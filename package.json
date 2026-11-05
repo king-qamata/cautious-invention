@@ -1,0 +1,20 @@
+{
+  "name": "mindset-healthcare-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "backup": "node scripts/backup.js",
+    "migrate:data": "node scripts/migrate-data.js",
+    "reset:data": "node scripts/reset-data.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
+}

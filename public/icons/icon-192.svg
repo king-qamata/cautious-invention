@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="Mindset Healthcare">
+  <rect width="192" height="192" rx="38" fill="#1b2a4a" />
+  <circle cx="96" cy="76" r="30" fill="#5cc8ff" />
+  <path d="M34 140c8-24 30-36 62-36s54 12 62 36" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" />
+  <path d="M96 36v24M84 48h24" stroke="#ffffff" stroke-width="8" stroke-linecap="round" />
+</svg>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mindset Healthcare — Patient app: 3 ways in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-900:#101B30;
+    --navy-800:#16233F;
+    --navy-700:#1B2A4A;
+    --mist:#9FB0C8;
+    --mist-dim:#7789A6;
+    --bg:#F4F6F9;
+    --card:#FFFFFF;
+    --line:#E4E9F0;
+    --ink:#16233F;
+    --ink-soft:#5B6B84;
+    --blue:#2E86D8;
+    --teal:#2E9E88;
+    --red:#D6394A;
+    --green-live:#2E9E5B;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'IBM Plex Sans', Arial, sans-serif;
+    background:#E7EAEF;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    display:flex;
+    justify-content:center;
+    padding:36px 16px;
+  }
+
+  /* ---- phone frame ---- */
+  .phone{
+    width:390px;
+    max-width:100%;
+    background:var(--bg);
+    border-radius:38px;
+    border:10px solid var(--navy-900);
+    box-shadow:0 24px 60px rgba(16,27,48,0.25);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .statusbar{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 22px 4px;font-size:13px;font-weight:600;color:var(--navy-900);
+  }
+  .screen{flex:1;overflow-y:auto;padding-bottom:8px;}
+
+  /* ---- header / greeting ---- */
+  .header{padding:14px 20px 18px;}
+  .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .brand{display:flex;align-items:center;gap:8px;}
+  .brand svg{flex:0 0 auto;}
+  .brand-word{font-family:'Lora', serif;font-weight:700;font-size:15px;color:var(--navy-900);}
+  .brand-word .set,.brand-word .care{color:var(--red);}
+  .avatar-btn{
+    width:34px;height:34px;border-radius:50%;background:var(--navy-800);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;
+  }
+  .greeting{font-size:12.5px;color:var(--ink-soft);margin:0 0 2px;}
+  .greeting strong{font-family:'Lora', serif;display:block;font-size:20px;color:var(--ink);font-weight:600;margin-top:2px;}
+
+  /* ---- SOS ---- */
+  .sos-wrap{padding:0 20px 6px;}
+  .sos{
+    position:relative;
+    display:flex;align-items:center;gap:12px;
+    background:linear-gradient(120deg,#E5495A,var(--red));
+    border-radius:16px;padding:14px 18px;color:#fff;
+    box-shadow:0 8px 20px rgba(214,57,74,0.32);
+  }
+  .sos-ring{
+    position:absolute;left:14px;top:50%;transform:translateY(-50%);
+    width:38px;height:38px;border-radius:50%;border:2px dashed rgba(255,255,255,0.6);
+    animation:pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes pulse{0%{transform:translateY(-50%) scale(1);opacity:.9;}50%{transform:translateY(-50%) scale(1.18);opacity:.35;}100%{transform:translateY(-50%) scale(1);opacity:.9;}}
+  .sos-icon{
+    width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.18);
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative;z-index:1;
+  }
+  .sos-text{flex:1;}
+  .sos-text .label{font-size:14.5px;font-weight:700;letter-spacing:.02em;}
+  .sos-text .sub{font-size:11.5px;color:rgba(255,255,255,0.85);margin-top:1px;}
+  .sos-arrow{font-size:13px;font-weight:700;}
+
+  /* ---- section label ---- */
+  .section-label{padding:22px 20px 4px;}
+  .section-label h3{font-family:'Lora', serif;font-size:16.5px;margin:0 0 2px;font-weight:600;}
+  .section-label p{margin:0;font-size:12.5px;color:var(--ink-soft);}
+
+  /* ---- route cards (built on the call-card / list-card pattern) ---- */
+  .routes{display:flex;flex-direction:column;gap:12px;padding:14px 20px 6px;}
+  .route-card{
+    background:var(--card);border:1.5px solid var(--line);border-radius:16px;
+    padding:14px 14px 14px 14px;display:flex;align-items:flex-start;gap:12px;
+    transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .route-card:active{transform:scale(0.99);}
+  .route-card.is-open{
+    border-color:var(--rc,var(--blue));
+    box-shadow:0 6px 18px rgba(16,27,48,0.08);
+  }
+  .route-icon{
+    width:44px;height:44px;border-radius:13px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--rc-bg,rgba(46,134,216,.1));color:var(--rc,var(--blue));
+  }
+  .route-body{flex:1;min-width:0;}
+  .route-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .route-top h4{font-size:14.5px;margin:0;font-weight:700;color:var(--ink);}
+  .route-badge{
+    font-size:10.5px;font-weight:700;letter-spacing:.02em;color:var(--rc,var(--blue));
+    background:var(--rc-bg,rgba(46,134,216,.1));padding:3px 8px;border-radius:20px;flex:0 0 auto;
+  }
+  .route-body p{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin:4px 0 0;}
+  .route-actions{
+    max-height:0;overflow:hidden;transition:max-height .2s ease;
+  }
+  .route-card.is-open .route-actions{max-height:60px;margin-top:12px;}
+  .route-actions-inner{display:flex;gap:8px;}
+  .rbtn{
+    flex:1;text-align:center;padding:9px 10px;border-radius:10px;font-size:12.5px;font-weight:600;
+    border:none;color:#fff;background:var(--rc,var(--blue));
+  }
+  .rbtn.secondary{background:var(--bg);color:var(--ink-soft);border:1px solid var(--line);}
+  .chevron{
+    width:22px;height:22px;flex:0 0 auto;color:var(--mist-dim);
+    display:flex;align-items:center;justify-content:center;transition:transform .2s ease;
+  }
+  .route-card.is-open .chevron{transform:rotate(90deg);color:var(--rc,var(--blue));}
+
+  .route-card[data-route="patient"]{--rc:var(--blue);--rc-bg:rgba(46,134,216,.1);}
+  .route-card[data-route="diaspora"]{--rc:var(--teal);--rc-bg:rgba(46,158,136,.1);}
+  .route-card[data-route="referrer"]{--rc:var(--red);--rc-bg:rgba(214,57,74,.1);}
+
+  /* ---- reassurance strip (mirrors call-card's allergy/blood-type footer pattern) ---- */
+  .reassure{
+    margin:16px 20px 0;padding:12px 14px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;display:flex;gap:10px;align-items:flex-start;
+  }
+  .reassure svg{flex:0 0 auto;color:var(--green-live);margin-top:1px;}
+  .reassure p{margin:0;font-size:11.5px;color:var(--ink-soft);line-height:1.5;}
+
+  /* ---- mobile bottom nav (matches Mobile menu component) ---- */
+  .tabbar{
+    display:flex;background:var(--card);border-top:1px solid var(--line);
+    padding:10px 6px 14px;margin-top:20px;
+  }
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--mist-dim);font-size:10.5px;font-weight:600;}
+  .tab.active{color:var(--blue);}
+  .tab .dot{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:9px;}
+  .tab.active .dot{background:rgba(46,134,216,.12);}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span>●●●●  Wi-Fi  100%</span></div>
+
+  <div class="screen">
+    <div class="header">
+      <div class="header-top">
+        <div class="brand">
+          <svg width="26" height="12" viewBox="0 0 160 76" fill="none">
+            <path d="M2 40 L34 40 L54 8 L65 34" stroke="#2E86D8" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M85 34 L96 8 L116 40 L154 40" stroke="#D6394A" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="158" cy="40" r="6" fill="#D6394A"/>
+          </svg>
+          <span class="brand-word">Mind<span class="set">set</span></span>
+        </div>
+        <div class="avatar-btn">CO</div>
+      </div>
+      <p class="greeting">Good morning</p>
+      <strong>What do you need care for today?</strong>
+    </div>
+
+    <div class="sos-wrap">
+      <div class="sos">
+        <div class="sos-ring"></div>
+        <div class="sos-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+        </div>
+        <div class="sos-text">
+          <div class="label">SOS EMERGENCY</div>
+          <div class="sub">Immediate dispatch, no form needed</div>
+        </div>
+        <div class="sos-arrow">→</div>
+      </div>
+    </div>
+
+    <div class="section-label">
+      <h3>Three ways in</h3>
+      <p>Tap one to see how it works</p>
+    </div>
+
+    <div class="routes" id="routes">
+
+      <div class="route-card" data-route="patient" tabindex="0" role="button" aria-expanded="false">
+        <div class="route-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div class="route-body">
+          <div class="route-top">
+            <h4>Find care for me</h4>
+            <span class="route-badge">Patient</span>
+          </div>
+          <p>Physical or mental health — describe what's going on and get matched to a provider.</p>
+          <div class="route-actions">
+            <div class="route-actions-inner">
+              <button class="rbtn">Start enquiry</button>
+              <button class="rbtn secondary">Not now</button>
+            </div>
+          </div>
+        </div>
+        <div class="chevron">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+
+      <div class="route-card" data-route="diaspora" tabindex="0" role="button" aria-expanded="false">
+        <div class="route-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg>
+        </div>
+        <div class="route-body">
+          <div class="route-top">
+            <h4>Arrange care for family</h4>
+            <span class="route-badge">Diaspora</span>
+          </div>
+          <p>Coordinate care for someone in Nigeria from wherever you are right now.</p>
+          <div class="route-actions">
+            <div class="route-actions-inner">
+              <button class="rbtn">Start enquiry</button>
+              <button class="rbtn secondary">Not now</button>
+            </div>
+          </div>
+        </div>
+        <div class="chevron">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+
+      <div class="route-card" data-route="referrer" tabindex="0" role="button" aria-expanded="false">
+        <div class="route-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87m9-8.13a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="route-body">
+          <div class="route-top">
+            <h4>Refer a patient</h4>
+            <span class="route-badge">Clinician</span>
+          </div>
+          <p>Submit a referral on someone's behalf and hand off into the provider network.</p>
+          <div class="route-actions">
+            <div class="route-actions-inner">
+              <button class="rbtn">Start referral</button>
+              <button class="rbtn secondary">Not now</button>
+            </div>
+          </div>
+        </div>
+        <div class="chevron">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="reassure">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      <p>Whichever path you pick, you're only charged once care is actually delivered — nothing is held until a doctor claims your case.</p>
+    </div>
+
+    <div class="tabbar">
+      <div class="tab active"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>Home</div>
+      <div class="tab"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>Find Care</div>
+      <div class="tab"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>Map</div>
+      <div class="tab"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>Messages</div>
+      <div class="tab"><span class="dot"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Profile</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.route-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.rbtn')) return; // let buttons behave independently
+      const isOpen = card.classList.contains('is-open');
+      document.querySelectorAll('.route-card').forEach(c => { c.classList.remove('is-open'); c.setAttribute('aria-expanded','false'); });
+      if (!isOpen){ card.classList.add('is-open'); card.setAttribute('aria-expanded','true'); }
+    });
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); card.click(); }
+    });
+  });
+</script>
+</body>
+</html>

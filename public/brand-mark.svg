@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 330" role="img" aria-labelledby="title desc">
+  <title id="title">Mindset Healthcare</title>
+  <desc id="desc">Mindset Healthcare brand mark and wordmark</desc>
+  <defs>
+    <linearGradient id="mindsetBlue" x1="0" x2="1">
+      <stop offset="0%" stop-color="#1a7cc4"/>
+      <stop offset="100%" stop-color="#1b2a4a"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(0 5)">
+    <path d="M56 170h120L256 70l55 105 67-145 55 145h76" fill="none" stroke="url(#mindsetBlue)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M430 168l52-112 105 148h92" fill="none" stroke="#d42a3c" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="665" cy="168" r="16" fill="#d42a3c"/>
+    <path d="M383 152c-56-43-58-95-10-95 17 0 22 12 11 22-10-10-7-16 12-16 42 0 48 55-13 89Z" fill="none" stroke="#d42a3c" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g font-family="Verdana, Arial, sans-serif" font-weight="700">
+    <text x="40" y="255" font-size="70" fill="#1b2a4a">Mind</text>
+    <text x="274" y="255" font-size="70" fill="#d42a3c">set</text>
+    <text x="530" y="255" font-size="64" fill="#1b2a4a">Health</text>
+    <text x="806" y="255" font-size="64" fill="#d42a3c">care</text>
+  </g>
+</svg>

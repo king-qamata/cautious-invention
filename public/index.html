@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Lora:wght@600;700&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#1b2a4a">
+    <meta name="description" content="Mindset Healthcare referral operations platform">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Mindset Ops">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="icon" href="/brand-mark.svg" type="image/svg+xml">
+    <title>Mindset Healthcare | Referral Operations</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div id="app">
+      <aside id="appSidebar" class="sidebar">
+        <div>
+          <div class="brand-lockup" aria-label="Mindset Healthcare brand">
+            <img src="/Mindset_Healthcare_Logo.svg" alt="Mindset Healthcare">
+          </div>
+          <div class="brand-tag"><strong>Referral operations</strong>Care coordination, made visible.</div>
+        </div>
+        <nav class="tabs" aria-label="Workspace">
+          <button data-view="campaigns" class="active">Campaigns</button>
+          <button data-view="intake">Intake</button>
+          <button data-view="consultations">Consultations</button>
+          <button data-view="referrals">Referrals</button>
+          <button data-view="providers">Providers</button>
+          <button data-view="reports">Reports</button>
+          <button data-view="account">Account</button>
+        </nav>
+        <div class="session">
+          <div class="session-status"><span class="status-dot"></span><span id="sessionUser" class="subtle"></span></div>
+          <button id="logoutBtn" class="secondary">Logout</button>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div class="topbar-title">
+            <button id="menuToggleBtn" class="menu-toggle secondary" type="button" aria-expanded="false" aria-controls="appSidebar">Menu</button>
+            <div>
+              <h1 id="viewTitle">Campaigns</h1>
+              <p id="viewSubtitle">Choose the path that matches your care need.</p>
+            </div>
+          </div>
+          <div class="topbar-accordion" aria-label="Quick header controls">
+            <section class="topbar-accordion-item" data-accordion="summary">
+              <button
+                class="topbar-accordion-toggle secondary"
+                type="button"
+                data-accordion-toggle="summary"
+                aria-expanded="false"
+                aria-controls="accordion-summary-panel"
+              >
+                Session summary
+              </button>
+              <div class="topbar-accordion-panel" id="accordion-summary-panel" role="region" aria-label="Session summary panel">
+                <div class="session-compact"><span class="status-dot"></span><span id="sessionUserCompact" class="subtle"></span></div>
+              </div>
+            </section>
+
+            <section class="topbar-accordion-item" data-accordion="account">
+              <button
+                class="topbar-accordion-toggle secondary"
+                type="button"
+                data-accordion-toggle="account"
+                aria-expanded="false"
+                aria-controls="accordion-account-panel"
+              >
+                Account access
+              </button>
+              <div class="topbar-accordion-panel" id="accordion-account-panel" role="region" aria-label="Account access panel">
+                <div class="login-panel" id="loginPanel">
+                  <input id="email" type="email" value="coordinator@mindset.local" aria-label="Email">
+                  <input id="password" type="password" value="password" aria-label="Password">
+                  <button id="loginBtn">Sign in</button>
+                </div>
+                <div class="user-chip hidden" id="userChip" aria-live="polite">
+                  <span class="avatar" id="userAvatar">CC</span>
+                  <span><strong id="userRole">Care Coordinator</strong><span id="userEmail"></span></span>
+                </div>
+                <button id="logoutBtnMobile" class="secondary hidden">Logout</button>
+              </div>
+            </section>
+          </div>
+        </header>
+
+        <section id="notice" class="notice hidden" role="status" aria-live="assertive" aria-atomic="true"></section>
+
+        <section id="campaigns" class="view active campaign-view">
+          <div class="campaign-hero">
+            <div class="campaign-kicker">CARE ACCESS <span aria-hidden="true">/</span> MINDSET HEALTHCARE</div>
+            <h2>One trusted route to the right care.</h2>
+            <p>For yourself, your family, or a patient you need to refer, Mindset connects the need to a coordinated next step in Nigeria.</p>
+            <div class="path-switch" role="group" aria-label="Choose a care path">
+              <button class="path-option is-primary" data-campaign-cta="patient">Find care for me</button>
+              <button class="path-option" data-campaign-cta="diaspora">Arrange care for family</button>
+              <button class="path-option" data-campaign-cta="referrer">Refer a patient</button>
+            </div>
+          </div>
+          <div class="care-quickstart" aria-label="Patient app quick actions">
+            <div class="care-quickstart-head">
+              <h2>Three ways in</h2>
+              <p>Tap a route to expand actions for the current workflow.</p>
+            </div>
+            <button class="sos-banner" data-sos-route="consultations" aria-label="Go to consultations for emergency workflow">
+              <span class="sos-badge">SOS</span>
+              <span class="sos-copy">
+                <strong>Emergency priority routing</strong>
+                <small>Jump straight to consultations and start urgent triage.</small>
+              </span>
+              <span class="sos-arrow" aria-hidden="true">→</span>
+            </button>
+            <p class="sos-helper">Emergency starts in Consultations.</p>
+
+            <div class="route-stack" id="careRouteStack">
+              <article class="route-card-ui" data-route-card tabindex="0" role="button" aria-expanded="false">
+                <div class="route-icon" aria-hidden="true">🧑</div>
+                <div class="route-content">
+                  <div class="route-content-top">
+                    <h3>Find care for me</h3>
+                    <span class="route-pill">Patient</span>
+                  </div>
+                  <p>Capture a direct patient care request for physical or mental health support.</p>
+                  <div class="route-card-actions">
+                    <button data-campaign-cta="patient">Start enquiry</button>
+                    <button class="secondary" data-view="intake">Open intake</button>
+                  </div>
+                </div>
+                <span class="route-chevron" aria-hidden="true">›</span>
+              </article>
+
+              <article class="route-card-ui" data-route-card tabindex="0" role="button" aria-expanded="false">
+                <div class="route-icon" aria-hidden="true">🌍</div>
+                <div class="route-content">
+                  <div class="route-content-top">
+                    <h3>Arrange care for family</h3>
+                    <span class="route-pill">Diaspora</span>
+                  </div>
+                  <p>Start a family-focused care flow while routing through the same trusted triage process.</p>
+                  <div class="route-card-actions">
+                    <button data-campaign-cta="diaspora">Start enquiry</button>
+                    <button class="secondary" data-view="intake">Open intake</button>
+                  </div>
+                </div>
+                <span class="route-chevron" aria-hidden="true">›</span>
+              </article>
+
+              <article class="route-card-ui" data-route-card tabindex="0" role="button" aria-expanded="false">
+                <div class="route-icon" aria-hidden="true">🏥</div>
+                <div class="route-content">
+                  <div class="route-content-top">
+                    <h3>Refer a patient</h3>
+                    <span class="route-pill">Clinician</span>
+                  </div>
+                  <p>Submit provider-to-provider handoff details and move directly into referral coordination.</p>
+                  <div class="route-card-actions">
+                    <button data-campaign-cta="referrer">Start referral</button>
+                    <button class="secondary" data-view="referrals">Open referrals</button>
+                  </div>
+                </div>
+                <span class="route-chevron" aria-hidden="true">›</span>
+              </article>
+            </div>
+          </div>
+          <div id="campaignDeferredContent" aria-live="polite"></div>
+        </section>
+
+        <section id="intake" class="view">
+          <div id="intakeContentMount"></div>
+        </section>
+
+        <section id="consultations" class="view">
+          <div class="consult-mobile-tabs" role="group" aria-label="Consultation workspace panels">
+            <button type="button" class="secondary is-active" data-consult-panel="request" aria-pressed="true">New request</button>
+            <button type="button" class="secondary" data-consult-panel="queue" aria-pressed="false">Queue</button>
+            <button type="button" class="secondary" data-consult-panel="comms" aria-pressed="false">Comms desk</button>
+          </div>
+          <div class="consult-sticky-triage" aria-label="Mobile triage quick actions">
+            <div>
+              <strong>Triage quick action</strong>
+              <p>One tap to open an urgent consultation request.</p>
+            </div>
+            <div class="consult-sticky-actions">
+              <button id="quickUrgentConsultBtn">Create urgent consult</button>
+              <button class="secondary chip" data-urgent-mode-toggle="true" aria-pressed="false">Urgent mode</button>
+            </div>
+          </div>
+          <div class="split consult-split">
+            <form id="consultationForm" class="panel consult-panel is-active" data-consult-panel-id="request">
+              <h2>Create Consultation Request</h2>
+              <label>Requested need<textarea name="requestedNeed" required placeholder="Describe the consultation need"></textarea></label>
+              <label>Tier
+                <select name="tier">
+                  <option value="normal">Normal</option>
+                  <option value="priority">Priority</option>
+                  <option value="super_priority">Super Priority</option>
+                </select>
+              </label>
+              <label>Patient requested communication
+                <select name="requestedCommunicationMode">
+                  <option value="voice_text">Voice + text</option>
+                  <option value="voice_call">Voice call</option>
+                  <option value="video_call">Video call</option>
+                </select>
+              </label>
+              <label>Procedure
+                <select name="procedureId" id="consultProcedure"></select>
+              </label>
+              <label>Payment method
+                <select name="paymentMethod">
+                  <option value="card">Card</option>
+                  <option value="bank_transfer">Bank transfer</option>
+                </select>
+              </label>
+              <div class="actions">
+                <button>Submit consultation</button>
+                <button type="button" class="secondary" id="runClaimSweep">Release unclaimed</button>
+              </div>
+            </form>
+            <div class="panel consult-panel is-active" data-consult-panel-id="queue">
+              <div class="panel-head">
+                <h2>Consultation Queue</h2>
+                <span id="consultationWorkspaceUpdatedAt" class="subtle ops-refresh-meta">Last refresh: --</span>
+              </div>
+              <div class="consultation-queue-tools">
+                <div class="consultation-queue-primary">
+                  <select id="consultationFilterPreset" aria-label="Apply consultation queue preset">
+                    <option value="custom">Custom view</option>
+                    <option value="all_queue">All queue</option>
+                    <option value="needs_claim">Needs claim</option>
+                    <option value="live_triage">Live triage</option>
+                    <option value="critical_followup">Critical follow-up</option>
+                  </select>
+                  <input id="consultationSearchFilter" type="search" placeholder="Search consultation or patient" aria-label="Search consultations by number, patient, or need">
+                  <button id="applyConsultationSearch" type="button" class="secondary">Search</button>
+                  <button id="refreshConsultations" class="secondary">Refresh</button>
+                  <button class="secondary chip" data-urgent-mode-toggle="true" aria-pressed="false">Urgent mode</button>
+                </div>
+                <details class="consultation-filter-disclosure">
+                  <summary>Filters and sorting</summary>
+                  <div class="consultation-filter-controls">
+                    <select id="consultationStatusFilter" aria-label="Filter consultation queue by status">
+                      <option value="all">All statuses</option>
+                      <option value="REQUESTED">Requested</option>
+                      <option value="DOCTOR_ACCEPTED">Accepted</option>
+                      <option value="IN_PROGRESS">In progress</option>
+                      <option value="COMPLETED">Completed</option>
+                      <option value="CANCELLED">Cancelled</option>
+                    </select>
+                    <select id="consultationTierFilter" aria-label="Filter consultation queue by tier">
+                      <option value="all">All tiers</option>
+                      <option value="normal">Normal</option>
+                      <option value="priority">Priority</option>
+                      <option value="super_priority">Super Priority</option>
+                    </select>
+                    <select id="consultationSortMode" aria-label="Sort consultation queue">
+                      <option value="recent">Newest first</option>
+                      <option value="urgency">Highest urgency</option>
+                      <option value="claim_expiry">Claim expiry soonest</option>
+                      <option value="waiting_time">Longest waiting</option>
+                      <option value="risk_score">Highest risk score</option>
+                    </select>
+                    <select id="eventLogKindFilter" aria-label="Filter consultation event log kind">
+                      <option value="all">All events</option>
+                      <option value="state_transition">State changes</option>
+                      <option value="claim">Claim events</option>
+                      <option value="session">Session events</option>
+                      <option value="interaction">Interaction events</option>
+                      <option value="payment">Payment events</option>
+                      <option value="biometric_hook">Biometric events</option>
+                    </select>
+                    <button id="clearConsultationFilters" type="button" class="secondary">Clear filters</button>
+                  </div>
+                </details>
+              </div>
+              <div class="consultation-preset-chips" role="group" aria-label="Quick consultation queue presets">
+                <button type="button" class="secondary chip" data-consult-preset-chip="all_queue" aria-pressed="false">All queue</button>
+                <button type="button" class="secondary chip" data-consult-preset-chip="needs_claim" aria-pressed="false">Needs claim</button>
+                <button type="button" class="secondary chip" data-consult-preset-chip="live_triage" aria-pressed="false">Live triage</button>
+                <button type="button" class="secondary chip" data-consult-preset-chip="critical_followup" aria-pressed="false">Critical follow-up</button>
+              </div>
+              <p id="consultationSearchHint" class="subtle consultation-search-hint">Type 3+ chars for live search, or press Enter.</p>
+              <p id="consultationFilterSummary" class="subtle consultation-filter-summary">Filters active: none</p>
+              <div id="consultationList" class="list"></div>
+              <div id="consultationOps" class="metrics compact"></div>
+            </div>
+          </div>
+          <div class="panel consult-panel is-active" data-consult-panel-id="comms">
+            <div class="panel-head">
+              <h2>Communication Desk</h2>
+              <div class="actions">
+                <span id="interactionUnreadPill" class="badge warn hidden">New updates</span>
+                <select id="interactionExportFormat" aria-label="Interaction transcript export format">
+                  <option value="csv">CSV</option>
+                  <option value="json">JSON</option>
+                </select>
+                <button id="refreshInteractionDesk" class="secondary">Refresh transcript</button>
+                <button id="exportInteractionTranscript" class="secondary">Export transcript</button>
+              </div>
+            </div>
+            <form id="consultationInteractionForm" class="panel">
+              <p class="form-intro">Capture channel-specific interaction events for voice-text, voice-call, and video-call sessions.</p>
+              <label>Consultation
+                <select id="interactionConsultationId" name="consultationId"></select>
+              </label>
+              <label>Session
+                <select id="interactionSessionId" name="sessionId"></select>
+              </label>
+              <div class="actions comms-filters">
+                <label>Transcript type
+                  <select id="interactionFilterType" name="interactionFilterType">
+                    <option value="all">All types</option>
+                    <option value="patient_message">Patient message</option>
+                    <option value="clinician_message">Clinician message</option>
+                    <option value="session_marker">Session marker</option>
+                    <option value="clinical_note">Clinical note</option>
+                  </select>
+                </label>
+                <label>Actor role
+                  <select id="interactionFilterActorRole" name="interactionFilterActorRole">
+                    <option value="all">All roles</option>
+                    <option value="patient">Patient</option>
+                    <option value="clinician">Clinician</option>
+                    <option value="coordinator">Coordinator</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </label>
+                <label>Rows
+                  <select id="interactionFilterLimit" name="interactionFilterLimit">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                  </select>
+                </label>
+                <label>Preset
+                  <select id="interactionPreset" name="interactionPreset"></select>
+                </label>
+              </div>
+              <label>Interaction type
+                <select id="interactionType" name="interactionType">
+                  <option value="patient_message">Patient message</option>
+                  <option value="clinician_message">Clinician message</option>
+                  <option value="session_marker">Session marker</option>
+                  <option value="clinical_note">Clinical note</option>
+                </select>
+              </label>
+              <label id="interactionMarkerWrap" class="hidden">Session marker
+                <select id="interactionMarker" name="marker">
+                  <option value="ringing">ringing</option>
+                  <option value="connected">connected</option>
+                  <option value="in_call">in_call</option>
+                  <option value="waiting_room">waiting_room</option>
+                  <option value="provider_ready">provider_ready</option>
+                  <option value="ended">ended</option>
+                  <option value="failed">failed</option>
+                  <option value="reconnecting">reconnecting</option>
+                  <option value="switched">switched</option>
+                </select>
+              </label>
+              <div class="actions comms-quick-actions" aria-label="Quick session marker actions">
+                <button type="button" class="secondary" data-quick-marker="connected">Mark connected</button>
+                <button type="button" class="secondary" data-quick-marker="reconnecting">Mark reconnecting</button>
+                <button type="button" class="secondary" data-quick-marker="ended">Mark ended</button>
+              </div>
+              <section id="callDesk" class="call-desk hidden" aria-live="polite">
+                <div class="call-desk-header">
+                  <h3>Live Call Transport</h3>
+                  <span id="callStatusBadge" class="badge">Idle</span>
+                </div>
+                <p id="callDeskHint" class="subtle">Select an active voice/video session to enable browser call transport.</p>
+                <div class="actions call-desk-actions">
+                  <button type="button" id="joinCallBtn" class="secondary">Join call</button>
+                  <button type="button" id="leaveCallBtn" class="secondary">Leave call</button>
+                  <button type="button" id="toggleMuteBtn" class="secondary">Mute mic</button>
+                  <button type="button" id="toggleCameraBtn" class="secondary">Camera off</button>
+                  <button type="button" id="providerReadyBtn" class="secondary">Provider ready</button>
+                  <button type="button" id="retryMediaPermissionsBtn" class="secondary hidden">Retry media permissions</button>
+                </div>
+                <div class="actions call-desk-utility-actions">
+                  <button type="button" id="toggleCallMinimizeBtn" class="secondary">Minimize</button>
+                  <button type="button" id="toggleCallPinBtn" class="secondary">Pin desk</button>
+                </div>
+                <p id="callRelayMeta" class="subtle">Relay mode: awaiting call config.</p>
+                <p id="callRecoveryHint" class="subtle hidden" aria-live="polite"></p>
+                <div class="call-media-grid">
+                  <figure class="call-media-tile" id="localMediaTile">
+                    <figcaption>You</figcaption>
+                    <video id="callLocalVideo" autoplay playsinline muted></video>
+                  </figure>
+                  <figure class="call-media-tile" id="remoteMediaTile">
+                    <figcaption>Remote participant</figcaption>
+                    <video id="callRemoteVideo" autoplay playsinline></video>
+                  </figure>
+                </div>
+              </section>
+              <label id="interactionMessageWrap">Message / note
+                <textarea id="interactionMessage" name="message" placeholder="Enter transcript note, text message, or clinical note"></textarea>
+              </label>
+              <div id="interactionFormHint" class="subtle" aria-live="polite"></div>
+              <p class="form-note">Shortcut: press Ctrl+Enter (or Cmd+Enter on Mac) to record message and note interactions.</p>
+              <div class="actions">
+                <button>Record interaction</button>
+                <button type="button" id="clearInteractionDraft" class="secondary">Clear draft</button>
+              </div>
+            </form>
+            <div id="consultationInteractionList" class="list"></div>
+          </div>
+        </section>
+
+        <section id="referrals" class="view">
+          <div class="split wide-left">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Referral Pipeline</h2>
+                <button id="refreshReferrals" class="secondary">Refresh</button>
+              </div>
+              <div id="referralList" class="list"></div>
+            </div>
+            <div class="panel">
+              <h2>Selected Referral</h2>
+              <div id="referralDetail" class="detail empty">Select a referral to review matching and move the case.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="providers" class="view">
+          <div class="split">
+            <form id="providerForm" class="panel">
+              <h2>Add Provider</h2>
+              <label>Name<input name="name" required placeholder="Hospital or clinic"></label>
+              <label>Type
+                <select name="type">
+                  <option value="hospital">Hospital</option>
+                  <option value="clinic">Clinic</option>
+                  <option value="diagnostic_center">Diagnostic center</option>
+                </select>
+              </label>
+              <label>City<input name="city" required placeholder="Lagos"></label>
+              <label>State<input name="state" placeholder="Lagos"></label>
+              <label>Contact Email<input name="contactEmail" type="email"></label>
+              <label>Rating<input name="rating" type="number" step="0.1" min="0" max="5" value="4.0"></label>
+              <button>Add Provider</button>
+            </form>
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Provider Catalogue</h2>
+                <button id="refreshProviders" class="secondary">Refresh</button>
+              </div>
+              <div id="providerList" class="list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="reports" class="view reports-view">
+          <div id="reportGrid" class="metrics"></div>
+          <section id="perfTelemetryPanel" class="panel perf-telemetry-panel" aria-live="polite">
+            <div class="panel-head">
+              <h2>Frontend startup telemetry</h2>
+              <span id="perfTelemetryUpdatedAt" class="subtle">Waiting for startup marker.</span>
+            </div>
+            <div id="perfTelemetryGrid" class="metrics compact perf-telemetry-grid">
+              <div class="metric">
+                <span>First meaningful consultation render</span>
+                <strong>--</strong>
+                <div class="subtle">No marker captured yet.</div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="account" class="view">
+          <div class="account-layout">
+            <div class="account-overview-column">
+              <section class="panel account-hero-card">
+                <p class="account-kicker">Mindset Account Workspace</p>
+                <h2 id="accountRoleHeading">Sign in to personalize your workspace</h2>
+                <p id="accountRoleNarrative" class="account-role-narrative">Role-specific tools, communication controls, and security actions are staged here for fast daily workflows.</p>
+                <div class="account-hero-chips">
+                  <span id="accountRoleChip" class="badge">Role workspace</span>
+                  <span id="accountUnreadChip" class="badge warn hidden">0 unread</span>
+                </div>
+                <div id="accountShortcutGrid" class="account-shortcut-grid">
+                  <button type="button" class="secondary" data-account-jump="profile">Open profile</button>
+                  <button type="button" class="secondary" data-account-jump="notifications">Open notifications</button>
+                  <button type="button" class="secondary" data-view="consultations">Open consultations</button>
+                </div>
+              </section>
+
+              <section class="panel account-insight-card">
+                <div class="panel-head">
+                  <h2>Role workload snapshot</h2>
+                  <span id="accountSnapshotMeta" class="subtle">Awaiting account data.</span>
+                </div>
+                <div id="accountUseCases" class="account-usecases">
+                  <div class="empty">Sign in to load account use-cases.</div>
+                </div>
+              </section>
+
+              <section class="panel account-screen-library">
+                <div class="panel-head">
+                  <h2>Screen library</h2>
+                  <span id="accountLibraryMeta" class="subtle">Role scenes and shortcuts.</span>
+                </div>
+                <div id="accountScreenLibraryList" class="account-screen-library-list">
+                  <div class="empty">Sign in to load role screens.</div>
+                </div>
+              </section>
+            </div>
+
+            <div class="account-workbench">
+              <div class="account-screen-nav" role="tablist" aria-label="Account screens">
+                <button type="button" id="accountScreenProfile" class="secondary is-active" data-account-screen="profile" role="tab" aria-selected="true">Profile</button>
+                <button type="button" id="accountScreenSecurity" class="secondary" data-account-screen="security" role="tab" aria-selected="false">Security</button>
+                <button type="button" id="accountScreenNotifications" class="secondary" data-account-screen="notifications" role="tab" aria-selected="false">Notifications</button>
+                <button type="button" id="accountScreenOperations" class="secondary" data-account-screen="operations" role="tab" aria-selected="false">Role Ops</button>
+                <button type="button" id="accountScreenClinician" class="secondary" data-account-screen="clinician" role="tab" aria-selected="false">Clinician Rules</button>
+              </div>
+
+              <div class="account-screen-stack">
+                <section class="account-screen is-active" data-account-screen-panel="profile">
+                  <form id="profileForm" class="panel">
+                    <h2>Profile</h2>
+                    <label>First name<input name="firstName" required></label>
+                    <label>Last name<input name="lastName" required></label>
+                    <label>Email<input type="email" name="email" required></label>
+                    <label>Phone<input name="phone"></label>
+                    <label>City<input name="city"></label>
+                    <label>State<input name="state"></label>
+                    <label>Country<input name="country"></label>
+                    <button>Update profile</button>
+                  </form>
+                </section>
+
+                <section class="account-screen" data-account-screen-panel="security">
+                  <form id="passwordForm" class="panel">
+                    <h2>Change Password</h2>
+                    <label>Current password<input type="password" name="currentPassword" required></label>
+                    <label>New password<input type="password" name="newPassword" required></label>
+                    <button>Rotate password</button>
+                  </form>
+                </section>
+
+                <section class="account-screen" data-account-screen-panel="notifications">
+                  <form id="notificationPreferencesForm" class="panel">
+                    <h2>Notification Preferences</h2>
+                    <p class="form-intro">Choose preferred channels for consultation notifications.</p>
+                    <label>Consultation channels
+                      <select name="preferredChannels" id="notificationPreferredChannels" multiple size="3">
+                        <option value="sms">SMS</option>
+                        <option value="email">Email</option>
+                        <option value="in_app">In-app</option>
+                      </select>
+                    </label>
+                    <label class="checkbox">
+                      <input type="checkbox" name="emailCopyEnabled" id="notificationEmailCopyEnabled" checked>
+                      Send email copy when the primary channel is not email
+                    </label>
+                    <button>Save notification preferences</button>
+                  </form>
+
+                  <section id="notificationInboxPanel" class="panel">
+                    <div class="panel-head">
+                      <h2>In-App Notification Center</h2>
+                      <div class="actions">
+                        <span id="notificationInboxUnreadBadge" class="badge warn hidden">0 unread</span>
+                        <button type="button" id="notificationInboxRefreshBtn" class="secondary">Refresh</button>
+                        <button type="button" id="notificationInboxMarkFilteredBtn" class="secondary">Mark filtered read</button>
+                        <button type="button" id="notificationInboxMarkAllBtn" class="secondary">Mark all read</button>
+                      </div>
+                    </div>
+                    <div class="notification-preset-chips" aria-label="Notification triage presets">
+                      <button type="button" class="chip" data-notification-preset="critical_unread">Critical unread</button>
+                      <button type="button" class="chip" data-notification-preset="communication_unread">Communication unread</button>
+                      <button type="button" class="chip" data-notification-preset="all_unread">All unread</button>
+                      <button type="button" class="chip" data-notification-preset="all">Reset</button>
+                    </div>
+                    <div class="notification-inbox-filters">
+                      <label>Channel
+                        <select id="notificationInboxChannelFilter">
+                          <option value="all">All channels</option>
+                          <option value="in_app">In-app</option>
+                          <option value="sms">SMS</option>
+                          <option value="email">Email</option>
+                        </select>
+                      </label>
+                      <label>Type
+                        <select id="notificationInboxTypeFilter">
+                          <option value="all">All types</option>
+                          <option value="communication">Communication</option>
+                          <option value="consultation">Consultation</option>
+                          <option value="referral">Referral</option>
+                          <option value="account">Account</option>
+                          <option value="system">System</option>
+                        </select>
+                      </label>
+                      <label>Severity
+                        <select id="notificationInboxSeverityFilter">
+                          <option value="all">All severity</option>
+                          <option value="critical">Critical</option>
+                          <option value="warning">Warning</option>
+                          <option value="info">Info</option>
+                        </select>
+                      </label>
+                      <label class="checkbox">
+                        <input type="checkbox" id="notificationInboxUnreadOnly">
+                        Show unread only
+                      </label>
+                    </div>
+                    <p id="notificationInboxMeta" class="subtle">Sign in to load notifications.</p>
+                    <div id="notificationInboxList" class="list">
+                      <div class="empty">No notifications loaded yet.</div>
+                    </div>
+                  </section>
+                </section>
+
+                <section class="account-screen" data-account-screen-panel="operations">
+                  <section class="panel">
+                    <div class="panel-head">
+                      <h2>Role operations board</h2>
+                      <span class="subtle">Action-focused view for the signed-in role.</span>
+                    </div>
+                    <div class="account-priority-head">
+                      <h3>Next best actions</h3>
+                      <span id="accountNextActionsMeta" class="subtle">Sign in to load prioritized actions.</span>
+                    </div>
+                    <div id="accountNextActionsList" class="account-next-actions-list">
+                      <div class="empty">Sign in to load prioritized actions.</div>
+                    </div>
+                    <div class="account-role-ops-head">
+                      <h3>Role operation scenarios</h3>
+                    </div>
+                    <div id="accountRoleOpsList" class="account-role-ops-list">
+                      <div class="empty">Sign in to load role operations.</div>
+                    </div>
+                  </section>
+                </section>
+
+                <section id="accountClinicianScreen" class="account-screen" data-account-screen-panel="clinician">
+                  <form id="clinicianAvailabilityForm" class="panel hidden">
+                    <h2>Clinician Availability Rules</h2>
+                    <label class="checkbox"><input type="checkbox" name="enabled" checked> Enable consultation broadcasts</label>
+                    <label>Accepted tiers
+                      <select name="acceptedTiers" multiple size="3">
+                        <option value="normal">Normal</option>
+                        <option value="priority">Priority</option>
+                        <option value="super_priority">Super Priority</option>
+                      </select>
+                    </label>
+                    <label>Specialties
+                      <select name="specialtyIds" id="availabilitySpecialties" multiple size="5"></select>
+                    </label>
+                    <label>Procedures
+                      <select name="procedureIds" id="availabilityProcedures" multiple size="6"></select>
+                    </label>
+                    <button>Save availability rules</button>
+                  </form>
+                </section>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <button id="drawerBackdrop" class="drawer-backdrop" aria-label="Close menu"></button>
+
+    <nav class="mobile-nav" aria-label="Mobile quick actions">
+      <button data-view="campaigns" class="active" aria-label="Open campaigns">Home</button>
+      <button data-view="intake" aria-label="Open intake">Intake</button>
+      <button data-view="consultations" aria-label="Open consultations">Consult</button>
+      <button data-view="referrals" aria-label="Open referrals">Cases</button>
+      <button class="mobile-sos" data-sos-route="consultations" aria-label="Emergency priority route">SOS</button>
+    </nav>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
+
