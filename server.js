@@ -64,11 +64,12 @@ async function checkDependencyHealth() {
     })();
 
     ensureConsultationCollections(db);
-    const consultationAlerts = consultationOperationalAlerts(db, {
+    const consultationSnapshot = consultationOperationalAlerts(db, {
       maxInProgressMinutes: config.maxInProgressMinutes,
       claimConflictThreshold: config.claimConflictThreshold,
       terminalHoldReconciliationGraceMinutes: config.terminalHoldReconciliationGraceMinutes
     });
+    const consultationAlerts = consultationSnapshot.alertDetails;
 
     const consultationWorkflow = consultationAlerts.every((alert) => alert.severity !== 'critical');
     const paymentIntegrity = consultationAlerts.every((alert) => alert.code !== 'terminal_hold_unreconciled');

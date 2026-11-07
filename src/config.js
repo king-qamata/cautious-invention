@@ -2,6 +2,8 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = fileURLToPath(new URL('..', import.meta.url));
+const isVercel = process.env.VERCEL === '1';
+const vercelWritableDir = '/tmp/mindset-healthcare';
 
 function numberEnv(name, fallback) {
   const value = Number(process.env[name] || fallback);
@@ -26,8 +28,8 @@ export const config = {
   host: process.env.HOST || '127.0.0.1',
   port: numberEnv('PORT', 3000),
   publicDir: resolve(rootDir, process.env.PUBLIC_DIR || 'public'),
-  dataFile: resolve(rootDir, process.env.DATA_FILE || 'data/mindset.json'),
-  documentDir: resolve(rootDir, process.env.DOCUMENT_DIR || 'data/documents'),
+  dataFile: resolve(rootDir, process.env.DATA_FILE || (isVercel ? `${vercelWritableDir}/mindset.json` : 'data/mindset.json')),
+  documentDir: resolve(rootDir, process.env.DOCUMENT_DIR || (isVercel ? `${vercelWritableDir}/documents` : 'data/documents')),
   sessionTtlHours: numberEnv('SESSION_TTL_HOURS', 168),
   maxBodyBytes: numberEnv('MAX_BODY_BYTES', 1024 * 1024),
   loginWindowMs: numberEnv('LOGIN_WINDOW_MS', 15 * 60 * 1000),

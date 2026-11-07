@@ -90,6 +90,17 @@ API errors return `{ "error", "code", "requestId" }`; rate-limited responses may
 
 The current persistence layer is a serialized JSON-file store intended for a lightweight single-node MVP. Database index tuning and Redis caching should follow a planned migration to a queryable datastore and measured workload; the frontend already uses short-lived workspace caching and request coalescing for repeated reads. The UI is responsive without a framework dependency, and uses native ARIA/live-region and reduced-motion support. Full localization should follow selection and review of supported languages, especially for clinical, urgency, and consent wording.
 
+### Vercel deployment note
+
+Vercel's function filesystem is read-only except for `/tmp`. When `VERCEL=1` is
+present, the app defaults its JSON data file and document directory to
+`/tmp/mindset-healthcare` so the function can start and serve the app. Vercel's
+temporary filesystem is not durable or shared between function instances; this
+fallback is suitable only for a deployment smoke test. Do not collect real
+patient data or enable real payments on this fallback. Before production use,
+configure a durable shared database and object storage and migrate the JSON-store
+and document services to those backends.
+
 ## Production MVP Notes
 
 Set these environment variables on the host:
