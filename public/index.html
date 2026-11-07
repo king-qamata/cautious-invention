@@ -3,22 +3,190 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Lora:wght@600;700&display=swap" rel="stylesheet">
-    <meta name="theme-color" content="#1b2a4a">
-    <meta name="description" content="Mindset Healthcare referral operations platform">
+    <meta name="theme-color" content="#18304b">
+    <meta name="description" content="Send Mindset Healthcare a care enquiry and share your preferred consultation option.">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Mindset Ops">
+    <meta name="apple-mobile-web-app-title" content="Mindset Healthcare">
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/brand-mark.svg" type="image/svg+xml">
-    <title>Mindset Healthcare | Referral Operations</title>
+    <title>Mindset Healthcare | Care starts with a conversation</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/home.css">
   </head>
   <body>
-    <div id="app">
+    <main id="public-home" class="public-home" tabindex="-1">
+      <header id="home" class="home-header">
+        <a class="home-brand" href="#home" aria-label="Mindset Healthcare home">
+          <img src="/Mindset_Healthcare_Logo.svg" alt="Mindset Healthcare">
+        </a>
+        <nav class="home-navigation" aria-label="Main navigation">
+          <a href="#ways">Ways in</a>
+          <a href="#tiers">Consultations</a>
+          <a href="#clinicians">For clinicians</a>
+        </nav>
+        <div class="home-header-actions">
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to dark theme">Dark mode</button>
+          <a class="button button-outline" href="#workspace">Clinician access</a>
+          <a class="button button-coral" href="#home-intake">Start a request</a>
+        </div>
+      </header>
+
+      <section id="top" class="home-hero">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>CARE THAT MEETS YOU WHERE YOU ARE</p>
+          <h1>Body or mind, a clearer next step starts with a conversation.</h1>
+          <p class="hero-description">Tell us what support you are looking for. Our care team will review your enquiry and help you understand possible next steps. Sending this form does not book an appointment.</p>
+          <div class="hero-actions">
+            <a class="button button-coral" href="#home-intake">Send a care enquiry <span aria-hidden="true">→</span></a>
+            <a class="text-link" href="#ways">Explore ways to get care <span aria-hidden="true">↓</span></a>
+          </div>
+          <ul class="hero-assurances" aria-label="Care highlights">
+            <li><span aria-hidden="true">✓</span> Your care preference is recorded</li>
+            <li><span aria-hidden="true">✓</span> A real enquiry enters the care team queue</li>
+            <li><span aria-hidden="true">✓</span> No payment is taken by this form</li>
+          </ul>
+        </div>
+
+        <section id="home-intake" class="intake-card" aria-labelledby="intakeTitle">
+          <div class="intake-card-heading">
+            <span class="intake-icon" aria-hidden="true">✳</span>
+            <div>
+              <p class="eyebrow">A GOOD PLACE TO START</p>
+              <h2 id="intakeTitle">Tell us what you need</h2>
+            </div>
+          </div>
+          <p class="intake-intro">Share only what is needed for the team to respond. This is a care enquiry, not a medical assessment or confirmed appointment.</p>
+          <form id="homeIntakeForm">
+            <label class="field-label" for="homeName">Your name</label>
+            <input id="homeName" name="name" autocomplete="name" maxlength="200" required>
+            <label class="field-label" for="homePhone">Phone number for follow-up</label>
+            <input id="homePhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="30" required>
+            <label class="field-label" for="homeEmail">Email <span class="field-hint">(optional)</span></label>
+            <input id="homeEmail" name="email" type="email" autocomplete="email" maxlength="255">
+            <label class="field-label" for="homeCareFor">Who is seeking care?</label>
+            <select id="homeCareFor" name="careFor">
+              <option value="self">Myself</option>
+              <option value="family">A family member</option>
+            </select>
+            <label class="field-label" for="homeLocation">City or area <span class="field-hint">(optional)</span></label>
+            <input id="homeLocation" name="location" autocomplete="address-level2" maxlength="200">
+            <label class="field-label" for="homeCountry">Country where care is needed</label>
+            <input id="homeCountry" name="country" autocomplete="country-name" value="Nigeria" maxlength="100" required>
+            <label class="field-label" for="homeCareType">Type of care</label>
+            <select id="homeCareType" name="careType" required>
+              <option value="">Choose one</option>
+              <option value="physical">Physical health</option>
+              <option value="mental">Mental health</option>
+              <option value="both">Both</option>
+            </select>
+            <label class="field-label" for="homeNeed">Briefly describe the support you are looking for</label>
+            <textarea id="homeNeed" name="healthcareRequirement" maxlength="1000" placeholder="Do not include medical records or payment details." required></textarea>
+            <label class="field-label" for="homeUrgency">Preferred consultation option</label>
+            <select id="homeUrgency" name="preferredUrgency" required>
+              <option value="normal">Normal · Voice-text · ₦1,000</option>
+              <option value="priority">Priority · Voice call · ₦5,000</option>
+              <option value="super_priority">Super Priority · Video call · ₦10,000</option>
+            </select>
+            <p class="field-hint">This is your preference, not a clinical urgency assessment. Options and fees must be confirmed before any booking. No payment is taken here.</p>
+            <label id="familyAuthorizationField" class="consent-label" hidden>
+              <input id="familyAuthorization" type="checkbox">
+              <span>I have permission to submit this enquiry on behalf of the person seeking care.</span>
+            </label>
+            <label class="consent-label">
+              <input name="consentGiven" type="checkbox" value="true" required>
+              <span>I agree that Mindset Healthcare may use these details to review and respond to this enquiry. I understand this is not an appointment booking.</span>
+            </label>
+            <details class="privacy-details">
+              <summary>How this enquiry is handled</summary>
+              <p>Your name, contact details, location, care preference and brief description are recorded in the lead system for authorized care coordination staff to review. Do not include passwords, payment details, medical records or details that are not needed for an initial enquiry. A full, reviewed privacy notice and contact-verification flow are still required before public production launch.</p>
+            </details>
+            <p class="emergency-guidance" role="note">This service is not an emergency service and this form is not monitored for emergencies. If someone may be in immediate danger, contact local emergency services or go to the nearest emergency department now.</p>
+            <p id="homeIntakeMessage" class="form-message" role="status" aria-live="polite" aria-atomic="true"></p>
+            <button id="homeSubmit" class="button button-coral intake-submit" type="submit">Send care enquiry <span aria-hidden="true">→</span></button>
+          </form>
+          <section id="homeConfirmation" class="home-confirmation" aria-labelledby="homeConfirmationTitle" role="status" tabindex="-1" hidden>
+            <span class="confirmation-icon" aria-hidden="true">✓</span>
+            <h3 id="homeConfirmationTitle">Your enquiry was received</h3>
+            <p>This is not a confirmed consultation or appointment. Keep this reference if you contact the care team.</p>
+            <p class="reference-number">Enquiry reference <strong id="homeLeadReference"></strong></p>
+            <button id="homeAnotherEnquiry" class="button button-outline" type="button">Send another enquiry</button>
+          </section>
+        </section>
+      </section>
+
+      <section id="ways" class="home-section ways-section">
+        <div class="section-heading">
+          <div><p class="eyebrow">START FROM YOUR SITUATION</p><h2>Three ways in</h2></div>
+          <p>Find a way forward that fits your care journey.</p>
+        </div>
+        <div class="ways-grid">
+          <article class="way-card">
+            <span class="way-number">01</span><h3>See a specialist</h3>
+            <p>Tell the care team what support you are looking for and where care is needed.</p>
+            <a href="#home-intake">Find a specialist <span aria-hidden="true">→</span></a>
+          </article>
+          <article class="way-card way-card-featured">
+            <span class="way-number">02</span><h3>Get care in Nigeria from abroad</h3>
+            <p>Send an enquiry about care in Nigeria for yourself or a family member while you are abroad.</p>
+            <a href="#home-intake">Plan care for family <span aria-hidden="true">→</span></a>
+          </article>
+          <article class="way-card">
+            <span class="way-number">03</span><h3>Follow up after a procedure</h3>
+            <p>Tell us you are looking for post-procedure support so the care team can review your enquiry.</p>
+            <a href="#home-intake">Enquire about follow-up <span aria-hidden="true">→</span></a>
+          </article>
+        </div>
+      </section>
+
+      <section id="tiers" class="home-section tiers-section">
+        <div class="section-heading">
+          <div><p class="eyebrow">CONSULTATION PREFERENCES</p><h2>Choose how you would prefer to speak with a clinician</h2></div>
+          <p>Your preference and any fee are confirmed by the care team before booking.</p>
+        </div>
+        <div class="tier-grid">
+          <article class="tier-card"><span class="tier-channel">VOICE-TEXT</span><h3>Normal</h3><strong>₦1,000</strong><p>A voice-text consultation preference. Confirm availability and fee before booking.</p><a href="#home-intake" data-home-tier="normal">Select preference <span aria-hidden="true">→</span></a></article>
+          <article class="tier-card tier-card-priority"><span class="tier-channel">VOICE CALL</span><h3>Priority</h3><strong>₦5,000</strong><p>A voice-call consultation preference. Confirm availability and fee before booking.</p><a href="#home-intake" data-home-tier="priority">Select preference <span aria-hidden="true">→</span></a></article>
+          <article class="tier-card"><span class="tier-channel">VIDEO CALL</span><h3>Super Priority</h3><strong>₦10,000</strong><p>A video-call consultation preference. Confirm availability and fee before booking.</p><a href="#home-intake" data-home-tier="super_priority">Select preference <span aria-hidden="true">→</span></a></article>
+        </div>
+      </section>
+
+      <section id="clinicians" class="clinician-section">
+        <div class="clinician-copy">
+          <p class="eyebrow">FOR CLINICIANS</p>
+          <h2>For clinicians coordinating care</h2>
+          <p>Registered clinicians can sign in to the operations workspace to review consultations and manage assigned care workflows. Patient enquiries submitted here are not consultation bookings.</p>
+          <a class="button button-light" href="#workspace/consultations">Clinician sign in <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="clinician-workspace-card">
+          <span class="claim-live">CLINICIAN WORKSPACE</span>
+          <h3>Care operations</h3>
+          <p>Sign in to review work assigned to your account. Access depends on your registered role and permissions.</p>
+          <a class="button button-coral" href="#workspace/consultations">Open clinician workspace <span aria-hidden="true">→</span></a>
+        </div>
+      </section>
+
+      <section class="home-section trust-section" aria-labelledby="trustTitle">
+        <div class="section-heading">
+          <div><p class="eyebrow">YOUR CARE, HANDLED WITH CARE</p><h2 id="trustTitle">Built to be trusted</h2></div>
+          <p>Thoughtful safeguards are part of every step.</p>
+        </div>
+        <div class="trust-grid">
+          <article><span aria-hidden="true">↗</span><h3>A care enquiry, not a booking</h3><p>Your details are recorded for the care team to review. A consultation, clinician assignment or appointment is not created by this form.</p></article>
+          <article><span aria-hidden="true">✓</span><h3>Clear next steps</h3><p>We show an enquiry reference after the service confirms receipt. Fees and availability must be confirmed before any booking.</p></article>
+          <article><span aria-hidden="true">⌑</span><h3>Share only what is needed</h3><p>Start with a brief description. Do not submit medical records or highly sensitive details through this enquiry form.</p></article>
+        </div>
+      </section>
+
+      <footer class="home-footer">
+        <a href="#home" aria-label="Mindset Healthcare home"><img src="/Mindset_Healthcare_Logo.svg" alt="Mindset Healthcare"></a>
+        <p>Mindset Healthcare</p>
+        <p>This enquiry form does not provide medical advice or emergency response. For immediate danger, contact local emergency services.</p>
+      </footer>
+    </main>
+
+    <div id="app" hidden>
       <aside id="appSidebar" class="sidebar">
         <div>
           <div class="brand-lockup" aria-label="Mindset Healthcare brand">
@@ -33,6 +201,7 @@
           <button data-view="referrals">Referrals</button>
           <button data-view="providers">Providers</button>
           <button data-view="reports">Reports</button>
+          <button data-view="patient-portal">My care</button>
           <button data-view="account">Account</button>
         </nav>
         <div class="session">
@@ -42,14 +211,16 @@
       </aside>
 
       <main>
+        <p id="workspaceLoadError" class="workspace-load-error" role="alert" hidden>The clinician workspace could not be loaded. Refresh the page or try again later.</p>
         <header class="topbar">
           <div class="topbar-title">
             <button id="menuToggleBtn" class="menu-toggle secondary" type="button" aria-expanded="false" aria-controls="appSidebar">Menu</button>
             <div>
-              <h1 id="viewTitle">Campaigns</h1>
+              <h1 id="viewTitle" tabindex="-1">Campaigns</h1>
               <p id="viewSubtitle">Choose the path that matches your care need.</p>
             </div>
           </div>
+          <a class="workspace-home-link" href="#home">Public home</a>
           <div class="topbar-accordion" aria-label="Quick header controls">
             <section class="topbar-accordion-item" data-accordion="summary">
               <button
@@ -78,10 +249,60 @@
               </button>
               <div class="topbar-accordion-panel" id="accordion-account-panel" role="region" aria-label="Account access panel">
                 <div class="login-panel" id="loginPanel">
-                  <input id="email" type="email" value="coordinator@mindset.local" aria-label="Email">
-                  <input id="password" type="password" value="password" aria-label="Password">
+                  <input id="email" type="email" autocomplete="username" placeholder="Email" aria-label="Email">
+                  <input id="password" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
                   <button id="loginBtn">Sign in</button>
+                  <button id="openRegistration" class="secondary" type="button">Create patient account</button>
                 </div>
+                <section id="registrationFlow" class="registration-flow hidden" aria-label="Patient account registration">
+                  <form id="registerPatientForm" class="registration-form">
+                    <h2>Create a patient account</h2>
+                    <div class="registration-name-fields">
+                      <label>First name<input name="firstName" required maxlength="100" autocomplete="given-name"></label>
+                      <label>Last name<input name="lastName" required maxlength="100" autocomplete="family-name"></label>
+                    </div>
+                    <label>Email<input name="email" type="email" required autocomplete="email"></label>
+                    <label>Phone<input name="phone" type="tel" autocomplete="tel"></label>
+                    <div class="registration-name-fields">
+                      <label>City<input name="city" maxlength="100" autocomplete="address-level2"></label>
+                      <label>State<input name="state" maxlength="100" autocomplete="address-level1"></label>
+                    </div>
+                    <label>Country<input name="country" value="Nigeria" maxlength="100" autocomplete="country-name"></label>
+                    <label>Password<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+                    <label>Verify by
+                      <select name="verificationChannel">
+                        <option value="email">Email</option>
+                        <option value="sms">SMS</option>
+                      </select>
+                    </label>
+                    <label class="checkbox"><input name="consentGiven" type="checkbox" required> I consent to the use of my account and contact details for account creation, verification, and secure access to the care portal.</label>
+                    <details class="registration-privacy-note">
+                      <summary>Account data handling</summary>
+                      <p>Your name, email, optional phone number, location, and verification state are stored for account and care-coordination access. This pilot does not provide a complete reviewed privacy notice; do not enter unnecessary sensitive or clinical information.</p>
+                    </details>
+                    <div class="actions">
+                      <button type="submit">Create account</button>
+                      <button id="closeRegistration" type="button" class="secondary">Back to sign in</button>
+                    </div>
+                  </form>
+                  <form id="verifyAccountForm" class="registration-form hidden">
+                    <h2>Verify your account</h2>
+                    <p id="verificationMessage" class="subtle" role="status"></p>
+                    <input name="email" type="email" required aria-label="Account email" autocomplete="email">
+                    <label>Verification channel
+                      <select name="channel">
+                        <option value="email">Email</option>
+                        <option value="sms">SMS</option>
+                      </select>
+                    </label>
+                    <label>Verification code<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{4,10}" required></label>
+                    <div class="actions">
+                      <button type="submit">Verify account</button>
+                      <button id="resendVerification" type="button" class="secondary">Resend code</button>
+                      <button id="cancelVerification" type="button" class="secondary">Back to sign in</button>
+                    </div>
+                  </form>
+                </section>
                 <div class="user-chip hidden" id="userChip" aria-live="polite">
                   <span class="avatar" id="userAvatar">CC</span>
                   <span><strong id="userRole">Care Coordinator</strong><span id="userEmail"></span></span>
@@ -458,10 +679,28 @@
               <div id="providerList" class="list"></div>
             </div>
           </div>
+          <section id="onboardingReviewPanel" class="panel onboarding-review-panel hidden">
+            <div class="panel-head"><h2>Onboarding applications</h2><button id="refreshOnboardingApplications" class="secondary" type="button">Refresh</button></div>
+            <div id="onboardingApplicationList" class="list"></div>
+          </section>
         </section>
 
         <section id="reports" class="view reports-view">
+          <form id="reportFilters" class="panel report-filters">
+            <div>
+              <h2>Advanced analytics</h2>
+              <p class="subtle">Filter operational totals by record creation date. Groups with fewer than five records are suppressed.</p>
+            </div>
+            <label>From<input type="date" name="from" aria-label="Report start date"></label>
+            <label>To<input type="date" name="to" aria-label="Report end date"></label>
+            <div class="actions">
+              <button type="submit">Apply dates</button>
+              <button type="reset" class="secondary">Clear dates</button>
+            </div>
+          </form>
+          <p id="reportPeriod" class="subtle report-period" role="status" aria-live="polite"></p>
           <div id="reportGrid" class="metrics"></div>
+          <div id="advancedReportGrid" class="advanced-report-grid"></div>
           <section id="perfTelemetryPanel" class="panel perf-telemetry-panel" aria-live="polite">
             <div class="panel-head">
               <h2>Frontend startup telemetry</h2>
@@ -475,6 +714,47 @@
               </div>
             </div>
           </section>
+        </section>
+
+        <section id="patient-portal" class="view patient-portal-view">
+          <div class="panel portal-intro">
+            <div class="panel-head">
+              <div><h2>My care</h2><p class="subtle">Review your case status, appointments and payment records.</p></div>
+              <button id="refreshPatientPortal" class="secondary" type="button">Refresh</button>
+            </div>
+            <p class="form-note">Family access is optional and limited to case status. Clinical notes and documents are not shared through this portal.</p>
+          </div>
+          <div id="patientPortalCases" class="portal-case-grid"><div class="empty">Sign in to load your care summary.</div></div>
+          <div class="portal-lower-grid">
+            <section class="panel">
+              <h2>Family access</h2>
+              <p class="subtle">Invite a trusted person by email. You can revoke access at any time; invitations expire after 30 days.</p>
+              <form id="familyInviteForm" class="portal-invite-form">
+                <label>Email address<input name="email" type="email" autocomplete="email" required maxlength="255"></label>
+                <label class="checkbox"><input name="consentGiven" type="checkbox" value="true" required>I approve case-status access for this person.</label>
+                <button type="submit">Invite family member</button>
+              </form>
+              <div id="familyInvitationList" class="list"></div>
+            </section>
+            <section class="panel">
+              <h2>Join the care network</h2>
+              <p class="subtle">Applications are reviewed by an administrator. Approval is required before operational access is granted.</p>
+              <form id="clinicianApplicationForm" class="portal-invite-form">
+                <h3>Clinician application</h3>
+                <label>Provider organization<select name="providerId" data-onboarding-provider required><option value="">Loading approved providers…</option></select></label>
+                <label>Professional title<input name="professionalTitle" required maxlength="120"></label>
+                <label>Professional license number<input name="licenseNumber" required maxlength="120" autocomplete="off"></label>
+                <button type="submit">Submit clinician application</button>
+              </form>
+              <form id="providerStaffApplicationForm" class="portal-invite-form">
+                <h3>Provider staff application</h3>
+                <label>Provider organization<select name="providerId" data-onboarding-provider required><option value="">Loading approved providers…</option></select></label>
+                <label>Job title<input name="jobTitle" required maxlength="120"></label>
+                <button type="submit">Submit provider staff application</button>
+              </form>
+              <div id="onboardingApplicationStatus" class="list"></div>
+            </section>
+          </div>
         </section>
 
         <section id="account" class="view">
@@ -554,12 +834,20 @@
                     <h2>Notification Preferences</h2>
                     <p class="form-intro">Choose preferred channels for consultation notifications.</p>
                     <label>Consultation channels
-                      <select name="preferredChannels" id="notificationPreferredChannels" multiple size="3">
+                      <select name="preferredChannels" id="notificationPreferredChannels" multiple size="5">
                         <option value="sms">SMS</option>
                         <option value="email">Email</option>
                         <option value="in_app">In-app</option>
+                        <option value="whatsapp">WhatsApp (opt in)</option>
+                        <option value="telegram">Telegram (linked account)</option>
                       </select>
                     </label>
+                    <p id="telegramLinkStatus" class="form-intro" aria-live="polite">Telegram is not linked.</p>
+                    <div class="actions">
+                      <button type="button" id="telegramLinkButton" class="secondary">Create Telegram link</button>
+                      <button type="button" id="telegramUnlinkButton" class="secondary">Unlink Telegram</button>
+                    </div>
+                    <p id="telegramLinkResult" class="form-intro hidden"></p>
                     <label class="checkbox">
                       <input type="checkbox" name="emailCopyEnabled" id="notificationEmailCopyEnabled" checked>
                       Send email copy when the primary channel is not email
@@ -590,6 +878,8 @@
                           <option value="in_app">In-app</option>
                           <option value="sms">SMS</option>
                           <option value="email">Email</option>
+                          <option value="whatsapp">WhatsApp</option>
+                          <option value="telegram">Telegram</option>
                         </select>
                       </label>
                       <label>Type
@@ -678,10 +968,10 @@
       <button data-view="intake" aria-label="Open intake">Intake</button>
       <button data-view="consultations" aria-label="Open consultations">Consult</button>
       <button data-view="referrals" aria-label="Open referrals">Cases</button>
+      <button data-view="patient-portal" aria-label="Open my care">My care</button>
       <button class="mobile-sos" data-sos-route="consultations" aria-label="Emergency priority route">SOS</button>
     </nav>
 
-    <script src="/app.js" type="module"></script>
+    <script src="/home.js" type="module"></script>
   </body>
 </html>
-

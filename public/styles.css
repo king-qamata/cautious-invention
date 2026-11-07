@@ -1,23 +1,23 @@
 :root {
   color-scheme: light;
-  --ink: #16233f;
-  --muted: #627386;
-  --line: #e4e9f0;
-  --panel: #fff;
-  --page: #f4f6f9;
-  --brand: #1b2a4a;
-  --brand-dark: #101b30;
-  --mist: #9fb0c8;
-  --accent: #d6394a;
-  --pulse: #2e86d8;
-  --teal: #2e9e88;
+  --ink: #18304b;
+  --muted: #687889;
+  --line: #e5e6e2;
+  --panel: #fffefa;
+  --page: #f8f7f2;
+  --brand: #18304b;
+  --brand-dark: #10243a;
+  --mist: #a7b9c9;
+  --accent: #e66c5c;
+  --pulse: #278f82;
+  --teal: #278f82;
   --ok: #18794e;
   --warn: #a66200;
   --bad: #b42318;
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; color: var(--ink); background: var(--page); font-family: "IBM Plex Sans", "Trebuchet MS", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+body { margin: 0; color: var(--ink); background: var(--page); font-family: Manrope, Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 button, input, select, textarea { font: inherit; }
 button { min-height: 40px; border: 0; border-radius: 10px; padding: 0 14px; color: #fff; background: var(--brand); cursor: pointer; }
 button:hover { background: var(--brand-dark); }
@@ -39,7 +39,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #55c58a; box-shadow: 0 0 0 3px rgba(85,197,138,.15); }
 
 main { display: flex; flex-direction: column; min-width: 0; min-height: 100vh; padding: 0; background: var(--page); }
-.topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 40px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.topbar { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 40px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .topbar-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .menu-toggle { display: none; min-height: 36px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 h1, h2, p { margin: 0; }
@@ -52,6 +52,15 @@ h1 { font-family: Georgia, "Times New Roman", serif; font-size: 26px; font-weigh
 .session-compact { display: flex; align-items: center; gap: 8px; }
 .login-panel { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .login-panel input { width: 220px; }
+.registration-flow { position: absolute; top: calc(100% + 6px); right: 14px; z-index: 40; width: min(440px, calc(100vw - 28px)); max-height: calc(100dvh - 100px); overflow: auto; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 16px 40px rgba(27,42,74,.18); }
+.registration-form { display: grid; gap: 12px; }
+.registration-form h2 { font-size: 19px; }
+.registration-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.registration-form label.checkbox { display: flex; align-items: flex-start; gap: 8px; font-weight: 500; line-height: 1.5; }
+.registration-form label.checkbox input { flex: 0 0 auto; width: auto; min-height: auto; margin-top: 3px; }
+.registration-name-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.registration-privacy-note { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.registration-privacy-note p { margin-top: 8px; }
 .user-chip { display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 7px; border: 1px solid var(--line); border-radius: 30px; color: var(--muted); font-size: 13px; }
 .user-chip .avatar { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; color: #fff; background: var(--brand); font-size: 12px; font-weight: 800; }
 .user-chip strong { color: var(--ink); }
@@ -247,6 +256,32 @@ form.panel label.checkbox input { width: auto; min-height: auto; margin-top: 2px
 .form-intro, .form-note { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .form-note { padding-left: 12px; border-left: 3px solid var(--accent); }
 .panel-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.report-filters { grid-template-columns: minmax(220px,1fr) minmax(150px,190px) minmax(150px,190px) auto; align-items: end; margin: 24px 40px 0; }
+.report-filters h2, .analytics-card h3 { margin: 0; }
+.report-filters p { margin: 6px 0 0; }
+.report-filters .actions { justify-content: flex-end; }
+.report-period { margin: 0 40px; }
+.advanced-report-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; padding: 0 40px 32px; }
+.analytics-card { align-content: start; }
+.onboarding-review-panel { margin: 16px 40px 32px; }
+.analytics-card ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.analytics-card li, .analytics-month { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.analytics-monthly { display: grid; gap: 2px; }
+.patient-portal-view { display: grid; gap: 16px; padding: 24px 40px 32px; }
+.portal-intro { margin: 0; }
+.portal-case-grid, .portal-lower-grid { display: grid; gap: 14px; }
+.portal-lower-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.portal-case-card { min-width: 0; }
+.portal-case-card h2, .portal-case-card h3 { margin: 0 0 8px; }
+.portal-case-card > div { margin-top: 14px; }
+.portal-case-list { display: grid; gap: 8px; }
+.portal-case-row { display: grid; grid-template-columns: minmax(100px,1fr) auto minmax(100px,1fr) minmax(100px,1fr); gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.portal-invite-form { display: grid; gap: 12px; }
+.portal-invite-form + .portal-invite-form { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
+.portal-invite-form h3 { margin: 0; font-size: 16px; }
+.portal-invite-form label { display: grid; gap: 6px; }
+.portal-invite-form label.checkbox { display: flex; align-items: flex-start; gap: 8px; }
+.portal-invite-form label.checkbox input { width: auto; min-height: auto; margin-top: 2px; }
 .list { display: grid; gap: 10px; }
 .item { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: #fbfdff; }
 .item-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
@@ -588,6 +623,13 @@ form.panel label.checkbox input { width: auto; min-height: auto; margin-top: 2px
   border-radius: 6px 6px 3px 3px;
   background: linear-gradient(180deg, rgba(46,134,216,.85), rgba(46,134,216,.45));
 }
+.perf-trend-bar-height-14 { height: 14px; }
+.perf-trend-bar-height-21 { height: 21px; }
+.perf-trend-bar-height-28 { height: 28px; }
+.perf-trend-bar-height-35 { height: 35px; }
+.perf-trend-bar-height-42 { height: 42px; }
+.perf-trend-bar-height-49 { height: 49px; }
+.perf-trend-bar-height-56 { height: 56px; }
 .perf-trend-bar.latest {
   background: linear-gradient(180deg, rgba(214,57,74,.9), rgba(214,57,74,.5));
 }
@@ -1195,7 +1237,10 @@ body.drawer-open .drawer-backdrop { display: block; }
   body.drawer-open .sidebar { transform: translateX(0); }
   .menu-toggle { display: inline-flex; align-items: center; }
   .brand-tag { margin-bottom: 12px; }
-  .split, .split.wide-left, .metrics, .campaign-grid, .account-layout { grid-template-columns: 1fr; }
+  .split, .split.wide-left, .metrics, .campaign-grid, .account-layout, .report-filters, .advanced-report-grid { grid-template-columns: 1fr; }
+  .report-filters, .report-period, .advanced-report-grid { margin-left: 16px; margin-right: 16px; padding-left: 0; padding-right: 0; }
+  .patient-portal-view { padding: 16px; }
+  .portal-case-row { grid-template-columns: 1fr; }
   .topbar { display: grid; gap: 10px; padding: 16px 20px; }
   .topbar-accordion {
     display: grid;
@@ -1338,6 +1383,8 @@ body.drawer-open .drawer-backdrop { display: block; }
 
 @media (max-width: 600px) {
   body { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  .portal-lower-grid { grid-template-columns: 1fr; }
+  .onboarding-review-panel { margin: 14px 14px 24px; }
   button, input, select, textarea { min-height: 44px; }
   .tabs button { min-height: 44px; }
   .topbar { padding: 14px; }

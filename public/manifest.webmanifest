@@ -1,13 +1,13 @@
 {
-  "name": "Mindset Healthcare Referral Ops",
-  "short_name": "Mindset Ops",
-  "description": "Mindset Healthcare referral operations and consultation workflow dashboard.",
+  "name": "Mindset Healthcare",
+  "short_name": "Mindset",
+  "description": "Mindset Healthcare care access and referral operations.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f4f6f9",
-  "theme_color": "#1b2a4a",
+  "background_color": "#f8f7f2",
+  "theme_color": "#18304b",
   "icons": [
     {
       "src": "/icons/icon-192.svg",

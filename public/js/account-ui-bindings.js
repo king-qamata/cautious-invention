@@ -160,6 +160,41 @@ export function bindAccountUiHandlers(deps) {
   }
 
   const notificationPreferencesForm = qs('#notificationPreferencesForm');
+  const telegramLinkButton = qs('#telegramLinkButton');
+  if (telegramLinkButton) {
+    telegramLinkButton.addEventListener('click', async () => {
+      try {
+        const result = await api('/api/v1/account/telegram/link', { method: 'POST' });
+        const linkResult = qs('#telegramLinkResult');
+        if (linkResult) {
+          const link = document.createElement('a');
+          link.href = result.deepLink;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'Open Telegram to finish linking';
+          linkResult.replaceChildren(link);
+          linkResult.classList.remove('hidden');
+        }
+        notice('Telegram link created. It expires in 15 minutes.');
+      } catch (error) {
+        notice(error.message, true);
+      }
+    });
+  }
+
+  const telegramUnlinkButton = qs('#telegramUnlinkButton');
+  if (telegramUnlinkButton) {
+    telegramUnlinkButton.addEventListener('click', async () => {
+      try {
+        await api('/api/v1/account/telegram/link', { method: 'DELETE' });
+        notice('Telegram account unlinked.');
+        await loadAccount();
+      } catch (error) {
+        notice(error.message, true);
+      }
+    });
+  }
+
   if (notificationPreferencesForm) {
     notificationPreferencesForm.addEventListener('submit', async (event) => {
       event.preventDefault();

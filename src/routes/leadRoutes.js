@@ -4,6 +4,7 @@ import {
   assertProcedureForSpecialty,
   assertRole,
   consentWasGiven,
+  isEmail,
   leadTransitions,
   makeId,
   nextReferralNumber,
@@ -44,6 +45,23 @@ export async function handleLeadRoutes(context) {
       error.status = 422;
       throw error;
     }
+    if (body.careFor !== undefined && !['self', 'family'].includes(body.careFor)) {
+      const error = new Error('Choose whether the enquiry is for yourself or a family member.');
+      error.status = 422;
+      throw error;
+    }
+    if (body.careFor === 'family' && !consentWasGiven(body.representativeAuthorized)) {
+      const error = new Error('Permission to submit an enquiry on behalf of a family member is required.');
+      error.status = 422;
+      throw error;
+    }
+    const rawEmail = String(body.email || '').trim();
+    const email = normalizeEmail(rawEmail);
+    if (rawEmail.length > 255 || (email && !isEmail(email))) {
+      const error = new Error('Enter a valid email address or leave the email field blank.');
+      error.status = 422;
+      throw error;
+    }
     assertConsultationTier(body.preferredUrgency || 'normal');
     await store.update((db) => {
       const timestamp = now();
@@ -51,12 +69,14 @@ export async function handleLeadRoutes(context) {
         id: makeId('lead'),
         patientId: body.patientId || null,
         careFor: ['self', 'family'].includes(body.careFor) ? body.careFor : 'self',
+        representativeAuthorized: body.careFor === 'family' && consentWasGiven(body.representativeAuthorized),
         consentGiven: true,
         consentGivenAt: timestamp,
+        consentVersion: 'website-enquiry-v1',
         source: normalizeString(body.source || 'website', 100),
         channel: normalizeString(body.channel || 'direct', 50),
         name: normalizeString(body.name, 200),
-        email: normalizeEmail(body.email),
+        email,
         phone: normalizeString(body.phone, 30),
         location: normalizeString(body.location, 200),
         country: normalizeString(body.country || 'Nigeria', 100),

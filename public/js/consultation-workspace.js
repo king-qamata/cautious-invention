@@ -8,12 +8,6 @@ function consultationTierOptions(selectedTier = 'normal') {
   ].map(([value, label]) => `<option value="${value}" ${selectedTier === value ? 'selected' : ''}>${label}</option>`).join('');
 }
 
-function escalationTierOptions(currentTier) {
-  if (currentTier === 'normal') return consultationTierOptions('priority');
-  if (currentTier === 'priority') return consultationTierOptions('super_priority');
-  return '';
-}
-
 function consultationCommunicationLayers(consultation) {
   if (Array.isArray(consultation.communicationLayers) && consultation.communicationLayers.length) {
     return consultation.communicationLayers;
@@ -81,15 +75,18 @@ export function createConsultationWorkspaceController(deps) {
   state.consultationUiState ||= {};
   state.consultationUiState.recordsOpenById ||= {};
 
-  function holdChip(consultation) {
-    const hold = consultation.holdPayment;
-    if (!hold) return '<span class="ledger-chip ledger-unknown">No hold record</span>';
+  function paymentChip(consultation) {
+    const payment = consultation.consultationPayment;
+    if (!payment) return '<span class="ledger-chip ledger-unknown">No payment record</span>';
     const byStatus = {
-      held: ['ledger-hold', `Hold placed ${formatNgn(hold.amount)}`],
-      captured: ['ledger-captured', `Hold captured ${formatNgn(hold.amount)}`],
-      released: ['ledger-released', `Hold released ${formatNgn(hold.amount)}`]
+      pending: ['ledger-hold', `Payment due ${formatNgn(payment.amount)}`],
+      initializing: ['ledger-hold', 'Checkout initializing'],
+      captured: ['ledger-captured', `Paid ${formatNgn(payment.amount)}`],
+      voided: ['ledger-released', 'No charge recorded'],
+      refund_required: ['ledger-released', `Manual refund required ${formatNgn(payment.amount)}`],
+      initialization_failed: ['ledger-unknown', 'Checkout could not be initialized']
     };
-    const [klass, text] = byStatus[hold.status] || ['ledger-unknown', `${hold.status || 'unknown'} ${formatNgn(hold.amount)}`];
+    const [klass, text] = byStatus[payment.status] || ['ledger-unknown', `${payment.status || 'unknown'} ${formatNgn(payment.amount)}`];
     return `<span class="ledger-chip ${klass}">${e(text)}</span>`;
   }
 
@@ -373,7 +370,7 @@ export function createConsultationWorkspaceController(deps) {
       <div class="consult-meta-row">
         <span class="tier-chip tier-${e(String(consultation.tier || 'normal').replace('_', '-'))}">${e(String(consultation.tier || 'normal').replace('_', ' '))}</span>
         ${consultation.status === 'IN_PROGRESS' ? (consultation.activeCommunicationLayer ? `<span class="active-layer-chip">Active: ${e(consultation.activeCommunicationLayer.replace(/_/g, ' '))}</span>` : '<span class="badge warn">Comms layer inactive</span>') : ''}
-        ${holdChip(consultation)}
+        ${paymentChip(consultation)}
         ${verificationChip(consultation)}
         ${riskChip(consultation)}
       </div>
@@ -381,10 +378,12 @@ export function createConsultationWorkspaceController(deps) {
       ${renderRiskFlags(consultation)}
       ${countdown ? `<div class="countdown"><span>Broadcast window:</span> <b>${e(countdown.label)}</b> <span class="subtle">expires ${e(new Date(countdown.expiresAt).toLocaleTimeString())}</span></div>` : ''}
       <div class="actions">
-        ${consultation.status === 'REQUESTED' ? `<button data-consult-action="claim" data-consult-id="${e(consultation.id)}">Claim</button>` : ''}
-        ${consultation.status === 'DOCTOR_ACCEPTED' ? `<button data-consult-action="start" data-consult-id="${e(consultation.id)}">Start</button>` : ''}
+        ${state.user?.role === 'clinician' && consultation.status === 'REQUESTED' ? `<button data-consult-action="claim" data-consult-id="${e(consultation.id)}">Claim</button>` : ''}
+        ${state.user?.role === 'patient' && consultation.status === 'DOCTOR_ACCEPTED' && !['captured', 'initializing'].includes(consultation.consultationPayment?.status) ? `<button data-consult-action="pay" data-consult-id="${e(consultation.id)}">Pay securely with Paystack</button>` : ''}
+        ${state.user?.role === 'patient' && consultation.status === 'DOCTOR_ACCEPTED' && ['pending', 'initializing'].includes(consultation.consultationPayment?.status) ? `<button class="secondary" data-consult-action="verify_payment" data-consult-id="${e(consultation.id)}">Check payment status</button>` : ''}
+        ${['clinician', 'coordinator', 'admin'].includes(state.user?.role) && consultation.status === 'DOCTOR_ACCEPTED' && consultation.consultationPayment?.status === 'captured' ? `<button data-consult-action="start" data-consult-id="${e(consultation.id)}">Start</button>` : ''}
         ${consultation.status === 'IN_PROGRESS' && !consultation.activeCommunicationLayer ? `<button data-consult-action="ensure_layer" data-consult-id="${e(consultation.id)}">Activate comms</button>` : ''}
-        ${consultation.status === 'IN_PROGRESS' ? `<button data-consult-action="complete" data-consult-id="${e(consultation.id)}">Complete</button>` : ''}
+        ${['clinician', 'coordinator', 'admin'].includes(state.user?.role) && consultation.status === 'IN_PROGRESS' ? `<button data-consult-action="complete" data-consult-id="${e(consultation.id)}">Complete</button>` : ''}
         ${consultation.status === 'IN_PROGRESS' ? `<select data-session-channel="${e(consultation.id)}">${communicationLayers.map((channel) => `<option value="${e(channel)}" ${channel === consultation.activeCommunicationLayer || (!consultation.activeCommunicationLayer && channel === consultation.requestedCommunicationMode) ? 'selected' : ''}>${e(channel.replace(/_/g, ' '))}</option>`).join('')}</select>` : ''}
         ${consultation.status === 'IN_PROGRESS' ? `<button data-consult-action="open_session" data-consult-id="${e(consultation.id)}">Open selected layer</button>` : ''}
       </div>
@@ -399,8 +398,7 @@ export function createConsultationWorkspaceController(deps) {
         ${consultation.status === 'IN_PROGRESS' ? `<button class="secondary" data-consult-action="switch_layer" data-consult-id="${e(consultation.id)}">Switch to ${e(nextLayer.replace(/_/g, ' '))}</button>` : ''}
         ${consultation.status === 'IN_PROGRESS' ? `<button class="secondary" data-consult-action="close_session" data-consult-id="${e(consultation.id)}">Close Session</button>` : ''}
         <button class="secondary" data-consult-action="open_interactions" data-consult-id="${e(consultation.id)}">Open interaction desk</button>
-        ${consultation.status === 'IN_PROGRESS' && consultation.tier !== 'super_priority' ? `<select data-escalate-tier="${e(consultation.id)}">${escalationTierOptions(consultation.tier)}</select>` : ''}
-        ${consultation.status === 'IN_PROGRESS' && consultation.tier !== 'super_priority' ? `<button class="secondary" data-consult-action="escalate" data-consult-id="${e(consultation.id)}">Escalate</button>` : ''}
+        ${consultation.status === 'IN_PROGRESS' && consultation.tier !== 'super_priority' ? '<span class="subtle">Tier changes after payment require a separate billing workflow.</span>' : ''}
         ${['REQUESTED', 'DOCTOR_ACCEPTED', 'IN_PROGRESS'].includes(consultation.status) ? `<button class="secondary" data-consult-action="cancel" data-consult-id="${e(consultation.id)}">Cancel</button>` : ''}
         <button class="secondary" data-consult-action="hook" data-consult-id="${e(consultation.id)}">Biometric Hook</button>
       </div>
@@ -453,7 +451,7 @@ export function createConsultationWorkspaceController(deps) {
 
   function renderConsultationOpsSnapshot(snapshot) {
     if (!snapshot) return;
-    const holdReleaseRate = Number(snapshot.holdReleaseRatePercent ?? 0);
+    const manualRefundRate = Number(snapshot.manualRefundRatePercent ?? 0);
     const conflictCount = snapshot.alerts?.claims?.conflictsLast24h ?? snapshot.alerts?.claims?.conflicts ?? 0;
     const risk = snapshot.riskDistribution || { critical: 0, warning: 0, stable: 0 };
     const interactions = snapshot.interactionBreakdownLast24h || {
@@ -471,7 +469,7 @@ export function createConsultationWorkspaceController(deps) {
     qs('#consultationOps').innerHTML = `
       <div class="metric"><span>Requested</span><strong>${e(snapshot.requested)}</strong><div class="subtle">Awaiting doctor claim</div></div>
       <div class="metric"><span>Median Claim Time</span><strong>${e(snapshot.medianClaimTimeSeconds ?? snapshot.averageClaimTimeSeconds)}s</strong><div class="subtle">REQUESTED -> ACCEPTED</div></div>
-      <div class="metric"><span>Hold Release Rate</span><strong>${e(holdReleaseRate)}%</strong><div class="subtle">Unclaimed/cancelled holds</div></div>
+      <div class="metric"><span>Manual Refund Rate</span><strong>${e(manualRefundRate)}%</strong><div class="subtle">${e(snapshot.refundRequired ?? 0)} refunds require follow-up</div></div>
       <div class="metric"><span>Claim Conflicts / 24h</span><strong>${e(conflictCount)}</strong><div class="subtle">Atomic conflict rejections</div></div>
       <div class="metric ${waitingPressureClass}"><span>Waiting Room Pressure</span><strong>${e(snapshot.waitingRoomPressureScore ?? 0)}</strong><div class="subtle">${e(waitingPressureLevel)} · oldest wait ${e(snapshot.oldestWaitingRoomSeconds ?? 0)}s</div></div>
       <div class="metric"><span>Call Readiness</span><strong>${e(snapshot.callReadinessPercent ?? 0)}%</strong><div class="subtle">ready+live across active calls</div></div>

@@ -6,24 +6,26 @@ import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 
 import {
   assertRole,
-  hashPassword,
   isEmail,
   makeId,
-  makeToken,
   now,
   normalizeEmail,
   normalizeString,
   publicUser,
-  seedDatabase,
-  verifyPassword
+  seedDatabase
 } from './src/domain.js';
 import { config } from './src/config.js';
 import { buildHealthSnapshot } from './src/health.js';
 import { toHttpErrorResponse } from './src/http-errors.js';
 import { createCallSignalingHub } from './src/realtime/callSignaling.js';
 import { handleAccountRoutes } from './src/routes/accountRoutes.js';
+import { handleAuthRoutes } from './src/routes/authRoutes.js';
 import { handleConsultationRoutes } from './src/routes/consultationRoutes.js';
 import { handleLeadReferralRoutes } from './src/routes/leadReferralRoutes.js';
+import { handleMessagingRoutes } from './src/routes/messagingRoutes.js';
+import { handleOnboardingRoutes } from './src/routes/onboardingRoutes.js';
+import { handlePatientPortalRoutes } from './src/routes/patientPortalRoutes.js';
+import { handlePaymentRoutes } from './src/routes/paymentRoutes.js';
 import { handleProviderRoutes } from './src/routes/providerRoutes.js';
 import { handleReportRoutes } from './src/routes/reportRoutes.js';
 import {
@@ -34,6 +36,10 @@ import {
   triggerClaimWindowSweep
 } from './src/services/consultations.js';
 import { JsonStore } from './src/storage.js';
+import {
+  deliverNextNotification,
+  notificationChannelConfiguration
+} from './src/services/messaging.js';
 
 const publicDir = config.publicDir;
 const store = new JsonStore(config.dataFile, seedDatabase());
@@ -66,7 +72,9 @@ async function checkDependencyHealth() {
 
     const consultationWorkflow = consultationAlerts.every((alert) => alert.severity !== 'critical');
     const paymentIntegrity = consultationAlerts.every((alert) => alert.code !== 'terminal_hold_unreconciled');
-    const notificationPipeline = db.notificationLogs.every((item) => ['queued', 'sent', 'delivered'].includes(item.status || 'sent'));
+    const notificationPipeline = db.notificationLogs.every((item) =>
+      ['queued', 'processing', 'sent', 'delivered'].includes(item.status || 'sent')
+    );
 
     return {
       dataStore,
@@ -126,6 +134,21 @@ function startOperationalTimers() {
       });
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Claim sweep failed: ${error.message}`);
+    }
+  }, intervalMs);
+  if (typeof timer.unref === 'function') timer.unref();
+  return timer;
+}
+
+function startNotificationDeliveryTimer() {
+  const channels = notificationChannelConfiguration(config);
+  if (!channels.whatsapp && !channels.telegram) return null;
+  const intervalMs = Math.max(1000, Number(config.notificationDeliveryIntervalMs) || 2000);
+  const timer = setInterval(async () => {
+    try {
+      await deliverNextNotification(store, config);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Notification delivery worker failed: ${error.message}`);
     }
   }, intervalMs);
   if (typeof timer.unref === 'function') timer.unref();
@@ -257,7 +280,7 @@ function sendError(res, error, id) {
   );
 }
 
-async function readBody(req) {
+async function readRawBody(req) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
@@ -269,8 +292,13 @@ async function readBody(req) {
     }
     chunks.push(chunk);
   }
-  if (!chunks.length) return {};
-  const body = Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks);
+}
+
+async function readBody(req) {
+  const rawBody = await readRawBody(req);
+  if (!rawBody.length) return {};
+  const body = rawBody.toString('utf8');
   try {
     return JSON.parse(body);
   } catch {
@@ -371,10 +399,6 @@ async function currentUser(req) {
   return db.users.find((user) => user.id === session.userId) || null;
 }
 
-function scrubExpiredSessions(db) {
-  db.sessions = db.sessions.filter((session) => new Date(session.expiresAt) > new Date());
-}
-
 async function requireUser(req) {
   const user = await currentUser(req);
   if (!user) {
@@ -473,77 +497,22 @@ async function handleApi(req, res, url, callSignalingHub) {
     return;
   }
 
-  if (key === 'POST /api/v1/auth/register') {
-    const body = await readBody(req);
-    requireFields(body, ['email', 'password', 'firstName', 'lastName']);
-    const email = normalizeEmail(body.email);
-    requireEmail(email);
-    requirePassword(body.password);
-    await store.update((db) => {
-      scrubExpiredSessions(db);
-      if (db.users.some((user) => user.email.toLowerCase() === email)) {
-        const error = new Error('Email is already registered.');
-        error.status = 409;
-        throw error;
-      }
-      const timestamp = now();
-      const user = {
-        id: makeId('user'),
-        email,
-        passwordHash: hashPassword(body.password),
-        firstName: normalizeString(body.firstName, 100),
-        lastName: normalizeString(body.lastName, 100),
-        phone: normalizeString(body.phone, 30),
-        role: body.role && ['patient', 'clinician'].includes(body.role) ? body.role : 'patient',
-        createdAt: timestamp,
-        updatedAt: timestamp
-      };
-      if (user.role === 'patient') {
-        const patient = {
-          id: makeId('patient'),
-          userId: user.id,
-          name: `${user.firstName} ${user.lastName}`,
-          email: user.email,
-          phone: user.phone,
-          city: normalizeString(body.city, 100),
-          state: normalizeString(body.state, 100),
-          country: normalizeString(body.country || 'Nigeria', 100),
-          consentGiven: Boolean(body.consentGiven),
-          createdAt: timestamp,
-          updatedAt: timestamp
-        };
-        db.patients.push(patient);
-        user.patientId = patient.id;
-      }
-      db.users.push(user);
-      audit(db, user.id, 'registered', 'user', user.id);
-      sendJson(res, 201, { data: publicUser(user) });
-    });
-    return;
-  }
-
-  if (key === 'POST /api/v1/auth/login') {
-    const body = await readBody(req);
-    requireFields(body, ['email', 'password']);
-    const email = normalizeEmail(body.email);
-    requireEmail(email);
-    checkLoginThrottle(req, email);
-    await store.update((db) => {
-      scrubExpiredSessions(db);
-      const user = db.users.find((item) => item.email.toLowerCase() === email);
-      if (!user || !verifyPassword(body.password, user.passwordHash)) {
-        recordLoginAttempt(req, email, false);
-        const error = new Error('Invalid email or password.');
-        error.status = 401;
-        throw error;
-      }
-      recordLoginAttempt(req, email, true);
-      const token = makeToken();
-      const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * config.sessionTtlHours).toISOString();
-      db.sessions.push({ token, userId: user.id, expiresAt, createdAt: now() });
-      audit(db, user.id, 'logged_in', 'user', user.id);
-      sendJson(res, 200, { data: { token, user: publicUser(user) } });
-    });
+  if (await handleAuthRoutes({
+    req,
+    res,
+    key,
+    store,
+    sendJson,
+    readBody,
+    requireFields,
+    requireEmail,
+    requirePassword,
+    checkLoginThrottle,
+    recordLoginAttempt,
+    audit,
+    config,
+    now
+  })) {
     return;
   }
 
@@ -564,6 +533,19 @@ async function handleApi(req, res, url, callSignalingHub) {
     return;
   }
 
+  if (await handleMessagingRoutes({
+    req,
+    res,
+    key,
+    store,
+    sendJson,
+    requireUser,
+    readBody,
+    config
+  })) {
+    return;
+  }
+
   if (await handleAccountRoutes({
     req,
     res,
@@ -579,6 +561,52 @@ async function handleApi(req, res, url, callSignalingHub) {
       db.consultationClaims ||= [];
       db.biometricVerifications ||= [];
     }
+  })) {
+    return;
+  }
+
+  if (await handleOnboardingRoutes({
+    req,
+    res,
+    key,
+    parts,
+    store,
+    sendJson,
+    requireUser,
+    readBody,
+    requireFields,
+    audit
+  })) {
+    return;
+  }
+
+  if (await handlePatientPortalRoutes({
+    req,
+    res,
+    key,
+    parts,
+    store,
+    sendJson,
+    requireUser,
+    readBody,
+    requireFields,
+    audit
+  })) {
+    return;
+  }
+
+  if (await handlePaymentRoutes({
+    req,
+    res,
+    key,
+    parts,
+    store,
+    sendJson,
+    requireUser,
+    readBody,
+    readRawBody,
+    config,
+    audit
   })) {
     return;
   }
@@ -752,6 +780,7 @@ server.keepAliveTimeout = 15 * 1000;
 server.headersTimeout = 16 * 1000;
 
 const claimSweepTimer = startOperationalTimers();
+const notificationDeliveryTimer = startNotificationDeliveryTimer();
 
 server.on('error', (error) => {
   console.error(`[${new Date().toISOString()}] Server failed: ${error.message}`);
@@ -762,6 +791,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`[${new Date().toISOString()}] Shutdown signal received: ${signal}`);
     if (claimSweepTimer) clearInterval(claimSweepTimer);
+    if (notificationDeliveryTimer) clearInterval(notificationDeliveryTimer);
     callSignalingHub.close();
     server.close(() => process.exit(0));
   });

@@ -1,8 +1,10 @@
-const STATIC_CACHE = 'mindset-static-v2';
+const STATIC_CACHE = 'mindset-static-v8';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
+  '/home.css',
+  '/home.js',
   '/app.js',
   '/manifest.webmanifest',
   '/icons/icon-192.svg',

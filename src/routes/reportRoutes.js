@@ -19,7 +19,64 @@ function byStatus(items = []) {
   return items.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {});
 }
 
-function buildReportSummary(db) {
+function parseReportRange(requestUrl) {
+  const from = requestUrl.searchParams.get('from');
+  const to = requestUrl.searchParams.get('to');
+  if (!from && !to) return null;
+
+  const parseDay = (value, endOfDay = false) => {
+    if (!value) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
+    const date = new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`);
+    return date.toISOString().slice(0, 10) === value ? date.getTime() : NaN;
+  };
+  const start = parseDay(from);
+  const end = parseDay(to, true);
+  if (!Number.isFinite(start ?? 0) || !Number.isFinite(end ?? 0) || (start !== null && end !== null && start > end)) {
+    const error = new Error('Report dates must be valid calendar dates with the start on or before the end.');
+    error.status = 422;
+    throw error;
+  }
+  if (start !== null && end !== null && end - start > 1000 * 60 * 60 * 24 * 730) {
+    const error = new Error('Report date range cannot exceed 730 days.');
+    error.status = 422;
+    throw error;
+  }
+  return { from: start, to: end };
+}
+
+function inReportRange(item, range) {
+  const timestamp = new Date(item.createdAt).getTime();
+  if (!Number.isFinite(timestamp)) return false;
+  return (range.from === null || timestamp >= range.from) && (range.to === null || timestamp <= range.to);
+}
+
+function groupCounts(items, keyFor) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = String(keyFor(item) || 'unknown');
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const groups = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const visible = groups.filter(([, count]) => count >= 5).map(([key, count]) => ({ key, count }));
+  return { groups: visible, suppressedGroups: groups.length - visible.length };
+}
+
+function getLeadCareType(lead) {
+  const match = /^Care type: (physical|mental|both)\b/i.exec(lead.healthcareRequirement || '');
+  return match?.[1].toLowerCase() || 'unknown';
+}
+
+function buildReportSummary(sourceDb, range) {
+  const db = range ? {
+    ...sourceDb,
+    leads: sourceDb.leads.filter((item) => inReportRange(item, range)),
+    referrals: sourceDb.referrals.filter((item) => inReportRange(item, range)),
+    appointments: sourceDb.appointments.filter((item) => inReportRange(item, range)),
+    payments: sourceDb.payments.filter((item) => inReportRange(item, range)),
+    consultations: sourceDb.consultations.filter((item) => inReportRange(item, range)),
+    notificationLogs: sourceDb.notificationLogs.filter((item) => inReportRange(item, range))
+  } : sourceDb;
   const stale = db.referrals.filter((referral) => {
     if (['closed', 'cancelled'].includes(referral.status)) return false;
     return Date.now() - new Date(referral.updatedAt).getTime() > 1000 * 60 * 60 * 24 * 3;
@@ -36,6 +93,14 @@ function buildReportSummary(db) {
   const averageTurnaroundDays = turnaroundSamples.length
     ? Math.round((turnaroundSamples.reduce((sum, days) => sum + days, 0) / turnaroundSamples.length) * 10) / 10
     : 0;
+  const monthly = new Map();
+  for (const item of [...db.leads, ...db.referrals]) {
+    const month = String(item.createdAt || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month)) continue;
+    const counts = monthly.get(month) || { month, leads: 0, referrals: 0 };
+    counts[item.referralNumber ? 'referrals' : 'leads'] += 1;
+    monthly.set(month, counts);
+  }
 
   return {
     leads: {
@@ -68,7 +133,19 @@ function buildReportSummary(db) {
     },
     consultations: consultationOperationalSnapshot(db),
     operationalAlerts: consultationOperationalAlerts(db),
-    notifications: { total: db.notificationLogs.length }
+    notifications: { total: db.notificationLogs.length },
+    advanced: {
+      period: range ? {
+        from: range.from === null ? null : new Date(range.from).toISOString().slice(0, 10),
+        to: range.to === null ? null : new Date(range.to).toISOString().slice(0, 10)
+      } : null,
+      monthly: [...monthly.values()].sort((a, b) => a.month.localeCompare(b.month)),
+      leadsByCountry: groupCounts(db.leads, (lead) => lead.country),
+      leadsByCareType: groupCounts(db.leads, getLeadCareType),
+      referralsByProvider: groupCounts(db.referrals.filter((item) => item.assignedProviderId), (item) => {
+        return sourceDb.providers.find((provider) => provider.id === item.assignedProviderId)?.name;
+      })
+    }
   };
 }
 
@@ -145,7 +222,9 @@ export async function handleReportRoutes(context) {
     const user = await requireUser(req);
     assertRole(user, ['admin', 'coordinator', 'finance']);
     const db = await store.read();
-    sendJson(res, 200, { data: buildReportSummary(db) });
+    const requestUrl = new URL(req.url || '/api/v1/reports/summary', 'http://localhost');
+    const range = parseReportRange(requestUrl);
+    sendJson(res, 200, { data: buildReportSummary(db, range) });
     return true;
   }
 

@@ -46,7 +46,7 @@ const CONSULTATION_SORT_KEY = 'mindset_consultation_sort_mode';
 const CONSULTATION_STATUS_KEY = 'mindset_consultation_filter_status';
 const CONSULTATION_TIER_KEY = 'mindset_consultation_filter_tier';
 const CONSULTATION_SEARCH_KEY = 'mindset_consultation_filter_search';
-const APP_TITLE = 'Mindset Healthcare | Referral Operations';
+const APP_TITLE = 'Mindset Healthcare | Care starts with a conversation';
 const INTERACTION_CACHE_TTL_MS = 12000;
 const ACCOUNT_WORKSPACE_CACHE_TTL_MS = 30000;
 
@@ -169,6 +169,7 @@ const titles = {
   referrals: ['Referrals', 'Move cases through matching, provider response, appointment, and completion.'],
   providers: ['Providers', 'Maintain the provider capability registry.'],
   reports: ['Reports', 'Track funnel health and operational load.'],
+  'patient-portal': ['My care', 'Review your private care summary and manage family access.'],
   account: ['Account', 'Review your role use-cases and manage profile credentials.']
 };
 
@@ -493,6 +494,9 @@ const authSession = createAuthSessionController({
 const {
   renderSession,
   signIn,
+  registerPatient,
+  startVerification,
+  confirmVerification,
   performLogout
 } = authSession;
 
@@ -555,7 +559,84 @@ async function refreshAll() {
   }
 }
 
+function renderPatientCase(caseData) {
+  const referrals = caseData.referrals.length
+    ? caseData.referrals.map((item) => `
+        <article class="portal-case-row">
+          <strong>${e(item.referralNumber || 'Referral')}</strong>
+          <span class="badge">${e(item.status || 'unknown')}</span>
+          <span>${e(item.procedure || 'Care coordination')}</span>
+          <span class="subtle">${e(item.provider || 'Provider to be confirmed')}</span>
+        </article>
+      `).join('')
+    : '<p class="subtle">No referrals to show.</p>';
+  const consultations = caseData.consultations.length
+    ? caseData.consultations.map((item) => `
+        <article class="portal-case-row">
+          <strong>${e(item.consultationNumber || 'Consultation')}</strong>
+          <span class="badge">${e(item.status || 'unknown')}</span>
+          <span>${e(item.tier || 'Consultation')}</span>
+          <span class="subtle">${e(item.channel || 'Channel pending')}</span>
+        </article>
+      `).join('')
+    : '<p class="subtle">No consultations to show.</p>';
+  return `
+    <section class="panel portal-case-card">
+      <h2>${e(caseData.patientName || 'My care')}</h2>
+      <div><h3>Referrals</h3><div class="portal-case-list">${referrals}</div></div>
+      <div><h3>Consultations</h3><div class="portal-case-list">${consultations}</div></div>
+    </section>
+  `;
+}
+
+async function loadPatientPortal() {
+  const data = await api('/api/v1/patient/portal');
+  const providers = await api('/api/v1/onboarding/providers');
+  const providerOptions = providers.length
+    ? `<option value="">Choose an approved provider</option>${providers.map((provider) => `<option value="${e(provider.id)}">${e(provider.name)} · ${e(provider.city || provider.country || '')}</option>`).join('')}`
+    : '<option value="">No approved providers available</option>';
+  qsa('[data-onboarding-provider]').forEach((select) => {
+    const selected = select.value;
+    select.innerHTML = providerOptions;
+    if (providers.some((provider) => provider.id === selected)) select.value = selected;
+    select.disabled = providers.length === 0;
+  });
+  const cases = [data.self, ...(data.sharedCases || [])].filter(Boolean);
+  qs('#patientPortalCases').innerHTML = cases.length
+    ? cases.map(renderPatientCase).join('')
+    : '<div class="empty">No care records are available yet.</div>';
+  const invitationMarkup = [
+    ...(data.incomingInvitations || []).map((item) => `
+      <article class="item">
+        <div><strong>Family access request</strong><div class="subtle">Shared by ${e(item.patientName)} · case status only</div></div>
+        <button type="button" data-accept-family="${e(item.id)}">Accept access</button>
+      </article>
+    `),
+    ...(data.familyInvitations || []).map((item) => `
+      <article class="item">
+        <div class="item-row"><strong>${e(item.invitedEmail)}</strong><span class="badge">${e(item.status)}</span></div>
+        <div class="subtle">Case status only · expires ${e(item.expiresAt?.slice(0, 10) || '—')}</div>
+        ${['pending', 'accepted'].includes(item.status) ? `<button type="button" class="secondary" data-revoke-family="${e(item.id)}">Revoke access</button>` : ''}
+      </article>
+    `)
+  ].join('');
+  qs('#familyInvitationList').innerHTML = invitationMarkup || '<p class="subtle">No family invitations.</p>';
+  qs('#onboardingApplicationStatus').innerHTML = data.onboardingApplications?.length
+    ? data.onboardingApplications.map((item) => `
+        <article class="item">
+          <div class="item-row"><strong>${e(item.type === 'clinician' ? 'Clinician application' : 'Provider staff application')}</strong><span class="badge">${e(item.status)}</span></div>
+          <span class="subtle">Submitted ${e(item.createdAt?.slice(0, 10) || '—')}${item.reviewedAt ? ` · reviewed ${e(item.reviewedAt.slice(0, 10))}` : ''}</span>
+        </article>
+      `).join('')
+    : '<p class="subtle">No onboarding applications submitted.</p>';
+}
+
 function switchView(view) {
+  if (!Object.hasOwn(titles, view)) return;
+  if (view === 'patient-portal' && state.user?.role !== 'patient') {
+    notice('Sign in with a patient account to open My care.', true);
+    return;
+  }
   const currentActiveView = qs('.view.active')?.id || '';
   const isSameView = currentActiveView === view;
   qsa('.tabs button').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
@@ -569,6 +650,9 @@ function switchView(view) {
   if (view === 'reports' && !isSameView) {
     renderStartupPerfTelemetryPanel();
     loadReports().catch((error) => notice(error.message, true));
+  }
+  if (view === 'patient-portal' && !isSameView) {
+    loadPatientPortal().catch((error) => notice(error.message, true));
   }
   if (view === 'consultations') {
     if (!isSameView) {
@@ -587,6 +671,10 @@ function switchView(view) {
     stopNotificationInboxPolling();
   }
 }
+
+window.addEventListener('mindset:workspace-view', (event) => {
+  switchView(event.detail);
+});
 
 async function createUrgentConsultation() {
   if (!state.catalogue?.procedures?.length) {
@@ -625,6 +713,9 @@ bindAppEventHandlers({
   state,
   notice,
   signIn,
+  registerPatient,
+  startVerification,
+  confirmVerification,
   switchView,
   loadConsultations,
   closeDrawer,
@@ -664,6 +755,7 @@ operationsUiBindings = bindOperationsUiHandlers({
   loadReferrals,
   loadProviders,
   loadReports,
+  loadPatientPortal,
   loadConsultations,
   renderReferralDetail,
   specialtyForProcedure
@@ -770,15 +862,15 @@ window.referralTransitions = {
   cancelled: []
 };
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => null);
-  });
-}
-
 restoreAccordionState();
 renderSession();
 initDeferredCampaignContent(qs);
 renderStartupPerfTelemetryPanel();
+document.documentElement.dataset.appReady = 'true';
+if (qs('#app').dataset.initialView) {
+  const initialView = qs('#app').dataset.initialView;
+  delete qs('#app').dataset.initialView;
+  switchView(initialView);
+}
 if (state.token) refreshAll().catch((error) => notice(error.message, true));
 else loadCatalogue().catch(() => null);

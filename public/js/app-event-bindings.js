@@ -4,6 +4,9 @@ export function bindAppEventHandlers(deps) {
     state,
     notice,
     signIn,
+    registerPatient,
+    startVerification,
+    confirmVerification,
     switchView,
     loadConsultations,
     closeDrawer,
@@ -93,6 +96,22 @@ export function bindAppEventHandlers(deps) {
         notice('Signed in.');
         await refreshAll();
       }
+      if (button.id === 'openRegistration') {
+        qs('#loginPanel').classList.add('hidden');
+        qs('#registrationFlow').classList.remove('hidden');
+      }
+      if (button.id === 'closeRegistration' || button.id === 'cancelVerification') {
+        qs('#registrationFlow').classList.add('hidden');
+        qs('#loginPanel').classList.remove('hidden');
+      }
+      if (button.id === 'resendVerification') {
+        const form = qs('#verifyAccountForm');
+        const email = form.elements.email.value;
+        const channel = form.elements.channel.value;
+        const result = await startVerification({ email, channel });
+        qs('#verificationMessage').textContent = result.message;
+        notice(result.message);
+      }
       if (button.id === 'logoutBtn') await performLogout();
       if (button.id === 'logoutBtnMobile') await performLogout();
       if (button.id === 'refreshLeads') await loadLeads();
@@ -114,6 +133,58 @@ export function bindAppEventHandlers(deps) {
       if (consultationUiBindings && await consultationUiBindings.handleConsultationActionClick(button)) {
         return;
       }
+    } catch (error) {
+      notice(error.message, true);
+    }
+  });
+
+  const registrationForm = qs('#registerPatientForm');
+  const verificationChannel = registrationForm?.elements.verificationChannel;
+  const registrationPhone = registrationForm?.elements.phone;
+  verificationChannel?.addEventListener('change', () => {
+    if (registrationPhone) registrationPhone.required = verificationChannel.value === 'sms';
+  });
+  registrationForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(registrationForm);
+    const payload = Object.fromEntries(form);
+    payload.consentGiven = registrationForm.elements.consentGiven.checked;
+    const channel = String(payload.verificationChannel);
+    const email = String(payload.email);
+    try {
+      await registerPatient(payload);
+      qs('#verifyAccountForm').elements.email.value = email;
+      qs('#verifyAccountForm').elements.channel.value = channel;
+      qs('#verificationMessage').textContent = `Enter the code sent by ${channel}. Codes expire after 10 minutes.`;
+      qs('#verifyAccountForm').classList.remove('hidden');
+      registrationForm.classList.add('hidden');
+      notice('Account created. Check your selected contact method for a verification code.');
+    } catch (error) {
+      if (error.status === 502 || error.status === 503) {
+        qs('#verifyAccountForm').elements.email.value = email;
+        qs('#verifyAccountForm').elements.channel.value = channel;
+        qs('#verificationMessage').textContent = 'Code delivery is not available right now. You can try resending after the service is configured.';
+        qs('#verifyAccountForm').classList.remove('hidden');
+        registrationForm.classList.add('hidden');
+      }
+      notice(error.message, true);
+    }
+  });
+
+  const verificationForm = qs('#verifyAccountForm');
+  verificationForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      const payload = Object.fromEntries(new FormData(verificationForm));
+      await confirmVerification(payload);
+      qs('#email').value = payload.email;
+      qs('#registrationFlow').classList.add('hidden');
+      verificationForm.reset();
+      registrationForm.reset();
+      registrationForm.classList.remove('hidden');
+      qs('#loginPanel').classList.remove('hidden');
+      notice('Account verified. Sign in to continue.');
+      qs('#password').focus();
     } catch (error) {
       notice(error.message, true);
     }

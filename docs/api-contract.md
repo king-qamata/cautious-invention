@@ -30,6 +30,27 @@ Common codes are `BAD_REQUEST` (400), `AUTHENTICATION_REQUIRED` (401), `PERMISSI
 - `POST /api/v1/account/change-password`
 - `GET /api/v1/account/clinician-availability`
 - `PATCH /api/v1/account/clinician-availability`
+- `GET /api/v1/account/notification-preferences`
+- `PATCH /api/v1/account/notification-preferences`
+- `POST /api/v1/account/telegram/link`
+- `DELETE /api/v1/account/telegram/link`
+- `GET /api/v1/account/notifications`
+- `POST /api/v1/account/notifications/read`
+
+Notification preference channels are `sms`, `email`, `in_app`, `whatsapp`, and
+`telegram`. WhatsApp requires a saved phone number and explicit user selection.
+Telegram must be linked first; the link endpoint returns a short-lived bot deep
+link. The Telegram bot webhook is `POST /api/v1/messaging/telegram/webhook` and
+requires the configured Telegram webhook secret header.
+
+```json
+{
+  "consultations": {
+    "preferredChannels": ["in_app", "whatsapp"],
+    "emailCopyEnabled": true
+  }
+}
+```
 
 ## Consultations
 
@@ -173,16 +194,17 @@ Common codes are `BAD_REQUEST` (400), `AUTHENTICATION_REQUIRED` (401), `PERMISSI
         "toStatus": "REQUESTED",
         "note": "Consultation requested."
       }
-    ],
-    "holdPayment": {
-      "paymentType": "consultation_hold",
-      "status": "held",
-      "amount": 5000,
-      "currency": "NGN"
-    }
+    ]
   }
 }
 ```
+
+After a clinician accepts, the patient can initialize Paystack checkout with
+`POST /api/v1/consultations/{consultationId}/payment/initialize`. The patient
+can confirm the result with `POST /api/v1/consultations/{consultationId}/payment/verify`;
+Paystack's signed `charge.success` webhook is also accepted at
+`POST /api/v1/payments/paystack/webhook`. The webhook is the server-side source
+of truth, and a consultation cannot start until a successful charge is verified.
 
 ## Clinician Availability Request
 

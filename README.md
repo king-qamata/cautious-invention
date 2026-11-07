@@ -6,18 +6,25 @@ CPanel-compatible V1 platform for managing healthcare leads, patient referrals, 
 
 The project starts as a Laravel V1 on shared CPanel hosting because that is the fastest reliable path to business validation. The system is designed around the referral lifecycle as the core unit of work, with a stable API contract and database model that can later support a Django V2 backend without rewriting the frontend.
 
-## V1 Scope
+## Current Capabilities
 
 - Patient lead capture and referral submission
 - Self and family-care intake with country and consent capture
+- Patient account registration, email/SMS contact verification, and a private care-status portal
+- Patient-approved, revocable family access limited to referral and consultation status
+- Clinician and provider-staff self-applications with administrator review and approval
 - Coordinator dashboard for lead qualification and referral management
 - Provider catalogue with specialties, procedures, availability, and manual matching
+- Explainable provider recommendations; a coordinator still approves the match
 - Referral state machine with append-only status history
 - Private document content storage and authenticated downloads
-- Email/SMS notification logging
-- Operational dashboards with channel conversion, provider training, and referral turnaround metrics
+- Date-filtered operational analytics with small-group suppression
+- Email/SMS verification when SMTP or Twilio Verify is configured
+- Opt-in WhatsApp template and Telegram bot delivery for consultation status notifications; Telegram accounts use expiring, one-time linking tokens
 
-Deferred from V1: diaspora self-service portal, clinician self-registration, provider staff self-onboarding, automated matching, real-time WhatsApp/Telegram messaging, advanced analytics, and integrated payments.
+Paystack checkout and signed webhook/verification handling are implemented but require production credentials and a public HTTPS callback/webhook configuration. Charges are initiated after clinician acceptance and before a consultation starts. Cancellations after a successful charge require a manual refund; the app records a refund-required state and does not call Paystack's refund API. Consultations do not start or complete unless payment is verified.
+
+Not yet integrated: diaspora-specific localization and market workflows, automatic provider assignment, and provider-to-patient messaging. Family invitations are currently visible to the invited account after sign-in; invitation delivery is not configured. A provider recommendation is advisory and does not assign a case.
 
 ## Documents
 
@@ -34,9 +41,37 @@ Deferred from V1: diaspora self-service portal, clinician self-registration, pro
 npm start
 ```
 
+### Paystack Configuration
+
+Set these variables only in the server environment; never expose Paystack secret
+keys to browser code:
+
+- `PAYSTACK_SECRET_KEY` — required to initialize and verify transactions.
+- `PAYSTACK_WEBHOOK_SECRET` — optional webhook HMAC secret; defaults to the
+  Paystack secret key.
+- `PAYSTACK_CALLBACK_URL` — optional HTTPS URL to return to after checkout. If
+  omitted, `PUBLIC_BASE_URL/?payment=returned` is used when `PUBLIC_BASE_URL`
+  is configured.
+- `PAYSTACK_BASE_URL` — optional API base URL, defaulting to `https://api.paystack.co`.
+
+Configure Paystack to send transaction events to
+`POST /api/v1/payments/paystack/webhook`. Keep the app behind HTTPS and verify
+the webhook in a Paystack test environment before enabling live charges.
+
 Open `http://localhost:3000`.
 
-Demo accounts:
+The root page is the patient-facing care access homepage. It submits a care enquiry
+to `POST /api/v1/leads`; submitting does not create an appointment, assign a
+clinician, provide medical advice, or take payment. The tier selection records a
+preference only. Use the clinician workspace link to open the existing operations
+app.
+
+Before public production launch, provide a reviewed privacy notice and approved
+support contact, verify the enquiry contact details, and establish an operational
+response process. The enquiry form is not monitored for emergencies and must not
+be presented as an emergency service.
+
+Demo accounts (local development only; replace or disable before deployment):
 
 - `admin@mindset.local` / `password`
 - `coordinator@mindset.local` / `password`
@@ -46,6 +81,10 @@ Demo accounts:
 The current implementation is lightweight Node.js (minimal runtime dependencies) with JSON persistence in `data/mindset.json`, so it can run in shared-hosting environments that support Node. The design still preserves the Laravel/CPanel V1 direction in the documentation.
 
 Authentication uses per-password random salts and PBKDF2-SHA256 (120,000 iterations); login attempts are rate-limited. Social login is not configured because no identity provider or callback credentials are part of this deployment.
+
+Patient registration is public but can create patient accounts only. Account contact verification requires an SMTP server (`SMTP_HOST`, `SMTP_FROM`, and optionally `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`) or Twilio Verify (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`). Keep provider credentials in the host's secret store, not in source control. Onboarding applications remain pending until an administrator reviews them; clinicians are not made available for consultation automatically.
+
+The patient portal only shares case-status summaries with family members after patient consent and recipient acceptance. It does not expose clinical notes or documents. The registration screen describes current account data handling; a complete reviewed privacy notice and operational support contact are still required before public launch.
 
 API errors return `{ "error", "code", "requestId" }`; rate-limited responses may also include `Retry-After`. The frontend displays validation and connectivity feedback and carries request IDs on `ApiError` for support diagnostics. See [the API error contract](docs/api-contract.md#error-responses).
 
@@ -83,7 +122,50 @@ CALL_TURN_SHARED_SECRET=turn-shared-secret
 CALL_TURN_CREDENTIAL_TTL_SECONDS=300
 CALL_TURN_USERNAME=turn-username
 CALL_TURN_CREDENTIAL=turn-password
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=service-account
+SMTP_PASSWORD=use-a-host-secret
+SMTP_FROM=Mindset Healthcare <no-reply@example.com>
+TWILIO_ACCOUNT_SID=use-a-host-secret
+TWILIO_AUTH_TOKEN=use-a-host-secret
+TWILIO_VERIFY_SERVICE_SID=use-a-host-secret
+WHATSAPP_ACCESS_TOKEN=use-a-host-secret
+WHATSAPP_PHONE_NUMBER_ID=use-a-host-value
+WHATSAPP_API_VERSION=v22.0
+WHATSAPP_TEMPLATE_NAME=consultation_update
+WHATSAPP_TEMPLATE_LANGUAGE=en
+TELEGRAM_BOT_TOKEN=use-a-host-secret
+TELEGRAM_BOT_USERNAME=your_bot_username
+TELEGRAM_WEBHOOK_SECRET=use-a-long-random-secret
+NOTIFICATION_DELIVERY_INTERVAL_MS=2000
 ```
+
+### WhatsApp and Telegram status notifications
+
+Users explicitly opt in to WhatsApp or Telegram from **Account → Notifications**.
+WhatsApp uses the user's saved phone number and an approved WhatsApp template
+named by `WHATSAPP_TEMPLATE_NAME`; that template must have two body variables for
+the notification subject and message. Do not put clinical notes or intake text in
+the template. The selected notification text is sent as written, so keep event
+messages limited to status updates.
+
+Telegram users create a 15-minute one-time linking URL from the same preferences
+screen, start the bot from that link, and then enable Telegram notifications.
+Configure the bot webhook to `https://your-domain.example/api/v1/messaging/telegram/webhook`
+with Telegram's `secret_token` set to `TELEGRAM_WEBHOOK_SECRET`. The app stores a
+Telegram chat identifier only after validating the one-time token; it is omitted
+from user-facing account responses. Unlinking removes the mapping.
+
+Outgoing WhatsApp and Telegram messages are durably queued in the JSON store and
+retried with backoff (up to five attempts) by the server worker. Delivery is
+at-least-once: a process crash after provider acceptance but before the local
+delivery record is saved can cause a duplicate. The JSON-file queue is for a
+single-node MVP; production multi-instance delivery should move to a transactional
+database and managed queue. Configure provider credentials in the host secret
+store, verify the approved template and webhook using provider test accounts, and
+obtain documented user consent before enabling live messaging.
 
 TURN credentials behavior:
 
@@ -128,7 +210,10 @@ Operational endpoints:
 
 - `GET /api/v1/health`
 - `GET /api/v1/readiness`
-- `GET /api/v1/operations/consultation-sla` (includes `alerts`, `alertDetails`, `highestSeverity`, `medianClaimTimeSeconds`, `p90ClaimTimeSeconds`, `holdReleaseRatePercent`, `riskDistribution`, and `criticalRiskPercent`)
+- `GET /api/v1/operations/consultation-sla` (includes `alerts`, `alertDetails`, `highestSeverity`, `medianClaimTimeSeconds`, `p90ClaimTimeSeconds`, `manualRefundRatePercent`, `riskDistribution`, and `criticalRiskPercent`)
+- `POST /api/v1/consultations/{consultationId}/payment/initialize`
+- `POST /api/v1/consultations/{consultationId}/payment/verify`
+- `POST /api/v1/payments/paystack/webhook` (requires a valid Paystack signature)
 - `POST /api/v1/operations/jobs/release-unclaimed-consultations`
 - `GET /api/v1/admin/export` with an admin token
 
@@ -136,14 +221,15 @@ Operational alert payloads include actionable `remediation` hints per alert code
 
 Section 3 capabilities now exposed as API workflows:
 
-- Tiered consultation requests (`normal`, `priority`, `super_priority`) with payment hold creation
+- Tiered consultation requests (`normal`, `priority`, `super_priority`) with payment records
 - Patient-requested communication preference captured at intake (`voice_text`, `voice_call`, `video_call`)
 - Atomic doctor claim endpoint with 2-minute claim window and conflict handling
 - Consultation lifecycle transitions (`REQUESTED` → `DOCTOR_ACCEPTED` → `IN_PROGRESS` → `COMPLETED`)
 - Three-layer communication orchestration after claim, with patient-preferred layer first
 - Clinician channel handoff support (close active session and open another requested layer)
 - Mid-consultation tier escalation to a higher tier only
-- Hold capture on completion and hold release on cancellation/timeout
+- Paystack checkout after clinician acceptance and verified payment before consultation start
+- Manual-refund-required tracking when a successfully charged consultation is cancelled
 - Explicit reason required for cancellation and active-session close actions
 - Account notification inbox endpoints for in-app operations: `GET /api/v1/account/notifications` and `POST /api/v1/account/notifications/read`
 - Notification inbox supports triage filters via query params: `channel`, `type`, `severity`, `unreadOnly`, and `limit`

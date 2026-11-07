@@ -4,12 +4,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { seedDatabase } from '../src/domain.js';
+import { isEmail, seedDatabase } from '../src/domain.js';
 import { JsonStore } from '../src/storage.js';
 import { handleAccountRoutes } from '../src/routes/accountRoutes.js';
-import { handleConsultationRoutes } from '../src/routes/consultationRoutes.js';
+import { handleAuthRoutes } from '../src/routes/authRoutes.js';
+import { handleConsultationRoutes as handleConsultationRoutesService } from '../src/routes/consultationRoutes.js';
 import { handleLeadReferralRoutes } from '../src/routes/leadReferralRoutes.js';
 import { handleDocumentRoutes } from '../src/routes/documentRoutes.js';
+import { handleOnboardingRoutes } from '../src/routes/onboardingRoutes.js';
+import { handlePatientPortalRoutes } from '../src/routes/patientPortalRoutes.js';
 import { handleReportRoutes } from '../src/routes/reportRoutes.js';
 
 function mockRes() {
@@ -82,6 +85,35 @@ async function buildContext(overrides = {}) {
     expandPayment: (dbRef, payment) => payment,
     cleanup: async () => rm(directory, { recursive: true, force: true })
   };
+}
+
+async function handleConsultationRoutes(context) {
+  if (context.req.method === 'POST' && context.parts?.[4] === 'start') {
+    await context.store.update((db) => {
+      const consultation = db.consultations.find((item) => item.id === context.parts[3]);
+      if (!consultation) return;
+      const existing = db.payments.find(
+        (item) => item.consultationId === consultation.id && item.paymentType === 'consultation_charge'
+      );
+      if (existing) {
+        existing.status = 'captured';
+        return;
+      }
+      db.payments.push({
+        id: `test-payment-${consultation.id}`,
+        consultationId: consultation.id,
+        patientId: consultation.patientId,
+        amount: consultation.amountNgn,
+        currency: 'NGN',
+        paymentType: 'consultation_charge',
+        status: 'captured',
+        transactionReference: `test-reference-${consultation.id}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    });
+  }
+  return handleConsultationRoutesService(context);
 }
 
 test('account routes returns use-cases payload', async () => {
@@ -268,6 +300,356 @@ test('operations workspace route returns consolidated payload with role-aware ca
       assert.equal(typeof comms.generatedAt, 'string');
     }
     assert.equal(typeof ctx.res.payload.data.generatedAt, 'string');
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test('report summary applies date filters and suppresses small analytics groups', async () => {
+  const ctx = await buildContext({
+    key: 'GET /api/v1/reports/summary',
+    url: '/api/v1/reports/summary?from=2025-03-01&to=2025-03-31'
+  });
+  try {
+    const db = await ctx.store.read();
+    const providerId = db.providers[0].id;
+    db.leads = [
+      ...Array.from({ length: 5 }, (_, index) => ({
+        id: `lead-nigeria-${index}`,
+        status: 'new',
+        country: 'Nigeria',
+        healthcareRequirement: 'Care type: physical\nNeed help.',
+        createdAt: `2025-03-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`
+      })),
+      {
+        id: 'lead-canada',
+        status: 'new',
+        country: 'Canada',
+        healthcareRequirement: 'Care type: mental\nNeed help.',
+        createdAt: '2025-03-10T12:00:00.000Z'
+      },
+      {
+        id: 'lead-out-of-range',
+        status: 'new',
+        country: 'Nigeria',
+        healthcareRequirement: 'Care type: physical\nNeed help.',
+        createdAt: '2025-02-28T12:00:00.000Z'
+      }
+    ];
+    db.referrals = Array.from({ length: 5 }, (_, index) => ({
+      id: `referral-${index}`,
+      referralNumber: `REF-${index}`,
+      status: 'open',
+      assignedProviderId: providerId,
+      createdAt: `2025-03-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`,
+      updatedAt: `2025-03-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`
+    }));
+    db.appointments = [];
+    db.payments = [];
+    db.consultations = [];
+    db.notificationLogs = [];
+    await ctx.store.write(db);
+
+    const handled = await handleReportRoutes({
+      req: ctx.req,
+      res: ctx.res,
+      key: ctx.key,
+      store: ctx.store,
+      sendJson: ctx.sendJson,
+      requireUser: async () => ctx.coordinator
+    });
+
+    assert.equal(handled, true);
+    const report = ctx.res.payload.data;
+    assert.equal(report.leads.total, 6);
+    assert.equal(report.referrals.total, 5);
+    assert.deepEqual(report.advanced.period, { from: '2025-03-01', to: '2025-03-31' });
+    assert.deepEqual(report.advanced.monthly, [{ month: '2025-03', leads: 6, referrals: 5 }]);
+    assert.deepEqual(report.advanced.leadsByCountry.groups, [{ key: 'Nigeria', count: 5 }]);
+    assert.equal(report.advanced.leadsByCountry.suppressedGroups, 1);
+    assert.deepEqual(report.advanced.leadsByCareType.groups, [{ key: 'physical', count: 5 }]);
+    assert.equal(report.advanced.leadsByCareType.suppressedGroups, 1);
+    assert.equal(report.advanced.referralsByProvider.groups[0].count, 5);
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test('report summary rejects invalid date ranges', async () => {
+  const ctx = await buildContext({
+    key: 'GET /api/v1/reports/summary',
+    url: '/api/v1/reports/summary?from=2025-02-30'
+  });
+  try {
+    await assert.rejects(
+      () => handleReportRoutes({
+        req: ctx.req,
+        res: ctx.res,
+        key: ctx.key,
+        store: ctx.store,
+        sendJson: ctx.sendJson,
+        requireUser: async () => ctx.coordinator
+      }),
+      { status: 422 }
+    );
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test('patient accounts require successful contact verification before login', async () => {
+  const ctx = await buildContext();
+  let sentCode = '';
+  const callAuth = async (key, body) => {
+    const res = mockRes();
+    const handled = await handleAuthRoutes({
+      req: { method: 'POST', headers: {}, url: key },
+      res,
+      key,
+      store: ctx.store,
+      sendJson: ctx.sendJson,
+      readBody: async () => body,
+      requireFields: ctx.requireFields,
+      requireEmail: (email) => {
+        if (!isEmail(email)) throw Object.assign(new Error('Invalid email.'), { status: 422 });
+      },
+      requirePassword: (password) => {
+        if (String(password).length < 8) throw Object.assign(new Error('Password is too short.'), { status: 422 });
+      },
+      recordLoginAttempt() {},
+      checkLoginThrottle() {},
+      audit: ctx.audit,
+      config: { smtpHost: 'smtp.example.test', smtpFrom: 'no-reply@example.test', sessionTtlHours: 1 },
+      now: () => new Date().toISOString(),
+      deliverCode: async (_challenge, code) => { sentCode = code; }
+    });
+    return { handled, res };
+  };
+
+  try {
+    const registration = await callAuth('POST /api/v1/auth/register', {
+      email: 'new.patient@example.test',
+      password: 'a-secure-password',
+      firstName: 'New',
+      lastName: 'Patient',
+      consentGiven: true,
+      verificationChannel: 'email'
+    });
+    assert.equal(registration.handled, true);
+    assert.equal(registration.res.status, 201);
+    assert.equal(registration.res.payload.data.user.verifiedAt, null);
+    assert.match(sentCode, /^\d{6}$/);
+
+    await assert.rejects(
+      () => callAuth('POST /api/v1/auth/login', { email: 'new.patient@example.test', password: 'a-secure-password' }),
+      { status: 403 }
+    );
+
+    const confirmation = await callAuth('POST /api/v1/auth/verification/confirm', {
+      email: 'new.patient@example.test',
+      channel: 'email',
+      code: sentCode
+    });
+    assert.equal(confirmation.res.status, 200);
+    assert.equal(confirmation.res.payload.data.verified, true);
+
+    const login = await callAuth('POST /api/v1/auth/login', {
+      email: 'new.patient@example.test',
+      password: 'a-secure-password'
+    });
+    assert.equal(login.res.status, 200);
+    assert.ok(login.res.payload.data.token);
+    assert.equal(login.res.payload.data.user.emailVerifiedAt !== undefined, true);
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test('public registration rejects role escalation and missing consent', async () => {
+  const ctx = await buildContext();
+  const callRegister = (body) => handleAuthRoutes({
+    req: { method: 'POST', headers: {}, url: '/api/v1/auth/register' },
+    res: mockRes(),
+    key: 'POST /api/v1/auth/register',
+    store: ctx.store,
+    sendJson: ctx.sendJson,
+    readBody: async () => body,
+    requireFields: ctx.requireFields,
+    requireEmail: () => {},
+    requirePassword: () => {},
+    audit: ctx.audit,
+    config: {},
+    now: () => new Date().toISOString(),
+    deliverCode: async () => {}
+  });
+
+  try {
+    await assert.rejects(
+      () => callRegister({ email: 'staff@example.test', password: 'password', firstName: 'Staff', lastName: 'User', consentGiven: true, role: 'admin' }),
+      { status: 422 }
+    );
+    await assert.rejects(
+      () => callRegister({ email: 'no-consent@example.test', password: 'password', firstName: 'No', lastName: 'Consent' }),
+      { status: 422 }
+    );
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test('clinician onboarding stays pending until an administrator approves it', async () => {
+  const ctx = await buildContext();
+  const db = await ctx.store.read();
+  const providerId = db.providers[0].id;
+  const admin = db.users.find((item) => item.role === 'admin');
+  const request = async ({ key, user, parts = [], body = {} }) => {
+    const res = mockRes();
+    const handled = await handleOnboardingRoutes({
+      req: { method: key.split(' ')[0], headers: {}, url: key },
+      res,
+      key,
+      parts,
+      store: ctx.store,
+      sendJson: ctx.sendJson,
+      requireUser: async () => user,
+      readBody: async () => body,
+      requireFields: ctx.requireFields,
+      audit: ctx.audit
+    });
+    return { handled, res };
+  };
+
+  try {
+    const providerChoices = await request({
+      key: 'GET /api/v1/onboarding/providers',
+      user: ctx.patient
+    });
+    assert.equal(providerChoices.handled, true);
+    assert.ok(providerChoices.res.payload.data.length > 0);
+    assert.deepEqual(
+      Object.keys(providerChoices.res.payload.data[0]).sort(),
+      ['city', 'country', 'id', 'name', 'type']
+    );
+
+    const submitted = await request({
+      key: 'POST /api/v1/onboarding/clinician',
+      user: ctx.patient,
+      body: {
+        providerId,
+        professionalTitle: 'Consultant',
+        licenseNumber: 'LICENSE-TEST-1',
+        specialtyIds: [db.specialties[0].id]
+      }
+    });
+
+    assert.equal(submitted.handled, true);
+    assert.equal(submitted.res.status, 201);
+    const applicantBeforeReview = (await ctx.store.read()).users.find((item) => item.id === ctx.patient.id);
+    assert.equal(applicantBeforeReview.role, 'patient');
+
+    const applicationId = submitted.res.payload.data.id;
+    const approved = await request({
+      key: `PATCH /api/v1/onboarding/applications/${applicationId}`,
+      parts: ['api', 'v1', 'onboarding', 'applications', applicationId],
+      user: admin,
+      body: { status: 'approved' }
+    });
+    assert.equal(approved.res.status, 200);
+    assert.equal(approved.res.payload.data.status, 'approved');
+    const applicantAfterReview = (await ctx.store.read()).users.find((item) => item.id === ctx.patient.id);
+    assert.equal(applicantAfterReview.role, 'clinician');
+    assert.equal(applicantAfterReview.consultationAvailability.enabled, false);
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test('patient portal exposes only invited case status and access is revocable', async () => {
+  const ctx = await buildContext();
+  const db = await ctx.store.read();
+  const ownerPatient = db.patients.find((item) => item.userId === ctx.patient.id);
+  const referral = {
+    id: 'portal-referral',
+    referralNumber: 'REF-PORTAL-1',
+    patientId: ownerPatient.id,
+    status: 'matched',
+    procedureId: db.procedures[0].id,
+    assignedProviderId: db.providers[0].id,
+    healthcareRequirement: 'Sensitive clinical description that must not be shared.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  db.referrals.push(referral);
+  db.consultations.push({
+    id: 'portal-consultation',
+    consultationNumber: 'CONSULT-PORTAL-1',
+    patientId: ownerPatient.id,
+    status: 'REQUESTED',
+    tier: 'normal',
+    channel: 'voice_text',
+    clinicalSummary: 'Sensitive note that must not be shared.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+  const recipient = db.users.find((item) => item.role === 'coordinator');
+  recipient.role = 'patient';
+  recipient.patientId = 'family-viewer-patient';
+  db.patients.push({
+    id: recipient.patientId,
+    userId: recipient.id,
+    name: 'Family Viewer',
+    email: recipient.email,
+    phone: '',
+    country: 'Nigeria'
+  });
+  await ctx.store.write(db);
+
+  const request = async ({ key, user, parts = [], body = {} }) => {
+    const res = mockRes();
+    const handled = await handlePatientPortalRoutes({
+      req: { method: key.split(' ')[0], headers: {}, url: key },
+      res,
+      key,
+      parts,
+      store: ctx.store,
+      sendJson: ctx.sendJson,
+      requireUser: async () => user,
+      readBody: async () => body,
+      requireFields: ctx.requireFields,
+      audit: ctx.audit
+    });
+    return { handled, res };
+  };
+
+  try {
+    const invitation = await request({
+      key: 'POST /api/v1/patient/family-invitations',
+      user: ctx.patient,
+      body: { email: recipient.email, consentGiven: true }
+    });
+    assert.equal(invitation.res.status, 201);
+    const invitationId = invitation.res.payload.data.id;
+    const accepted = await request({
+      key: `POST /api/v1/patient/family-invitations/${invitationId}/accept`,
+      parts: ['api', 'v1', 'patient', 'family-invitations', invitationId, 'accept'],
+      user: recipient
+    });
+    assert.equal(accepted.res.payload.data.status, 'accepted');
+
+    const sharedPortal = await request({ key: 'GET /api/v1/patient/portal', user: recipient });
+    const sharedReferral = sharedPortal.res.payload.data.sharedCases[0].referrals[0];
+    assert.equal(sharedReferral.referralNumber, 'REF-PORTAL-1');
+    assert.equal('healthcareRequirement' in sharedReferral, false);
+    assert.equal('clinicalSummary' in sharedPortal.res.payload.data.sharedCases[0].consultations[0], false);
+
+    const revoked = await request({
+      key: `POST /api/v1/patient/family-invitations/${invitationId}/revoke`,
+      parts: ['api', 'v1', 'patient', 'family-invitations', invitationId, 'revoke'],
+      user: ctx.patient
+    });
+    assert.equal(revoked.res.payload.data.status, 'revoked');
+    const closedPortal = await request({ key: 'GET /api/v1/patient/portal', user: recipient });
+    assert.equal(closedPortal.res.payload.data.sharedCases.length, 0);
   } finally {
     await ctx.cleanup();
   }
@@ -564,6 +946,71 @@ test('lead routes persist lead source attribution field', async () => {
     assert.equal(ctx.res.status, 201);
     assert.equal(ctx.res.payload.data.source, 'need_based_portfolio');
     assert.equal(ctx.res.payload.data.channel, 'social');
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test('public family enquiries require representative authorization and valid optional email', async () => {
+  const ctx = await buildContext({ key: 'POST /api/v1/leads', method: 'POST' });
+  const context = {
+    req: ctx.req,
+    res: ctx.res,
+    key: ctx.key,
+    parts: [],
+    store: ctx.store,
+    sendJson: ctx.sendJson,
+    requireUser: async () => ctx.coordinator,
+    readBody: ctx.readBody,
+    requireFields: ctx.requireFields,
+    normalizeEmail: ctx.normalizeEmail,
+    audit: ctx.audit
+  };
+  const enquiry = (overrides = {}) => ({
+    name: 'Family Enquiry',
+    phone: '+2348010002222',
+    email: 'family@example.com',
+    healthcareRequirement: 'Looking for care coordination.',
+    consentGiven: true,
+    careFor: 'family',
+    representativeAuthorized: true,
+    ...overrides
+  });
+
+  try {
+    context.readBody = async () => enquiry({ careFor: 'other' });
+
+    await assert.rejects(
+      () => handleLeadReferralRoutes(context),
+      (error) => error.status === 422 && /yourself or a family member/i.test(error.message)
+    );
+
+    context.readBody = async () => enquiry({ representativeAuthorized: false });
+
+    await assert.rejects(
+      () => handleLeadReferralRoutes(context),
+      (error) => error.status === 422 && /permission/i.test(error.message)
+    );
+
+    context.readBody = async () => enquiry({ email: 'not-an-email' });
+    await assert.rejects(
+      () => handleLeadReferralRoutes(context),
+      (error) => error.status === 422 && /valid email/i.test(error.message)
+    );
+
+    context.readBody = async () => enquiry({ email: `x${'a'.repeat(255)}@example.com` });
+    await assert.rejects(
+      () => handleLeadReferralRoutes(context),
+      (error) => error.status === 422 && /valid email/i.test(error.message)
+    );
+
+    context.readBody = async () => enquiry();
+
+    assert.equal(await handleLeadReferralRoutes(context), true);
+    assert.equal(ctx.res.status, 201);
+    assert.equal(ctx.res.payload.data.email, 'family@example.com');
+    assert.equal(ctx.res.payload.data.representativeAuthorized, true);
+    assert.equal(ctx.res.payload.data.consentVersion, 'website-enquiry-v1');
   } finally {
     await ctx.cleanup();
   }
@@ -1295,7 +1742,7 @@ test('consultation SLA route returns operational alerts payload', async () => {
     assert.ok(typeof ctx.res.payload.data.acceptanceWindowSeconds === 'number');
     assert.ok(typeof ctx.res.payload.data.medianClaimTimeSeconds === 'number');
     assert.ok(typeof ctx.res.payload.data.p90ClaimTimeSeconds === 'number');
-    assert.ok(typeof ctx.res.payload.data.holdReleaseRatePercent === 'number');
+    assert.ok(typeof ctx.res.payload.data.manualRefundRatePercent === 'number');
     assert.ok(ctx.res.payload.data.riskDistribution);
     assert.ok(typeof ctx.res.payload.data.riskDistribution.critical === 'number');
     assert.ok(typeof ctx.res.payload.data.riskDistribution.warning === 'number');

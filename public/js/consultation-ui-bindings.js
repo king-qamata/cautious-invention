@@ -63,6 +63,15 @@ export function bindConsultationUiHandlers(deps) {
       notice('Consultation event log exported as CSV.');
       return true;
     }
+    if (button.dataset.consultAction === 'verify_payment') {
+      notice(result?.payment?.status === 'captured'
+        ? 'Payment confirmed. The clinician can now start the consultation.'
+        : result?.payment?.status === 'refund_required'
+          ? 'Payment received after cancellation; a manual refund review is required.'
+          : 'Payment is not confirmed yet. You can check again shortly.');
+      await Promise.all([loadConsultations(), loadAccount()]);
+      return true;
+    }
     delete state.consultationEventLogById[consultId];
     delete state.consultationEventLogErrorById[consultId];
     delete state.consultationEventLogLoadingById[consultId];

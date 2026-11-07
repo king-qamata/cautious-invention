@@ -23,6 +23,15 @@ export function createConsultationActionRunner(deps) {
     if (action === 'claim') return api(`/api/v1/consultations/${consultationId}/claim`, { method: 'POST' });
     if (action === 'start') return api(`/api/v1/consultations/${consultationId}/start`, { method: 'POST' });
     if (action === 'complete') return api(`/api/v1/consultations/${consultationId}/complete`, { method: 'POST' });
+    if (action === 'pay') {
+      const checkout = await api(`/api/v1/consultations/${consultationId}/payment/initialize`, { method: 'POST' });
+      if (!checkout.authorizationUrl) throw new Error('Paystack did not provide a checkout link.');
+      window.location.assign(checkout.authorizationUrl);
+      return { redirectingToCheckout: true };
+    }
+    if (action === 'verify_payment') {
+      return api(`/api/v1/consultations/${consultationId}/payment/verify`, { method: 'POST' });
+    }
     if (action === 'cancel') {
       const reason = promptRequiredReason('Reason for cancellation', 'Cancelled from dashboard');
       if (reason === null) return { cancelledByUser: true };

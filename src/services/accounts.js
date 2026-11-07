@@ -21,7 +21,7 @@ function ensureCollections(db) {
   db.notificationLogs ||= [];
 }
 
-const SUPPORTED_NOTIFICATION_CHANNELS = ['sms', 'email', 'in_app'];
+const SUPPORTED_NOTIFICATION_CHANNELS = ['sms', 'email', 'in_app', 'whatsapp', 'telegram'];
 const SUPPORTED_NOTIFICATION_TYPES = ['consultation', 'communication', 'referral', 'account', 'system'];
 const SUPPORTED_NOTIFICATION_SEVERITIES = ['info', 'warning', 'critical'];
 const SUPPORTED_NEXT_ACTION_STATUSES = ['active', 'completed', 'snoozed'];
@@ -193,8 +193,11 @@ export function accountUseCases(db, user) {
         referrals: db.referrals.length,
         consultations: db.consultations.length,
         appointments: db.appointments.length,
-        unsettledConsultationHolds: db.payments.filter(
-          (item) => item.consultationId && item.paymentType === 'consultation_hold' && item.status === 'held'
+        unsettledConsultationPayments: db.payments.filter(
+          (item) =>
+            item.consultationId &&
+            ['consultation_charge', 'consultation_hold'].includes(item.paymentType) &&
+            ['pending', 'initializing', 'refund_required'].includes(item.status)
         ).length
       }
     };
@@ -284,7 +287,10 @@ export function getOwnNotificationPreferences(db, userId) {
     error.status = 404;
     throw error;
   }
-  return structuredClone(currentNotificationPreferences(user));
+  return {
+    ...structuredClone(currentNotificationPreferences(user)),
+    telegramLinked: Boolean(user.telegramChatId)
+  };
 }
 
 export function updateOwnNotificationPreferences(db, userId, payload) {
@@ -309,6 +315,21 @@ export function updateOwnNotificationPreferences(db, userId, payload) {
     error.status = 422;
     throw error;
   }
+  if (preferredChannels.includes('whatsapp') && !normalizeString(user.phone, 30)) {
+    const error = new Error('Add a phone number before enabling WhatsApp notifications.');
+    error.status = 422;
+    throw error;
+  }
+  if (preferredChannels.includes('whatsapp') && !/^\+[1-9]\d{7,14}$/.test(normalizeString(user.phone, 30))) {
+    const error = new Error('Use an international phone number in E.164 format before enabling WhatsApp.');
+    error.status = 422;
+    throw error;
+  }
+  if (preferredChannels.includes('telegram') && !user.telegramChatId) {
+    const error = new Error('Link a Telegram account before enabling Telegram notifications.');
+    error.status = 422;
+    throw error;
+  }
 
   if (consultations.emailCopyEnabled !== undefined && typeof consultations.emailCopyEnabled !== 'boolean') {
     const error = new Error('emailCopyEnabled must be a boolean.');
@@ -323,7 +344,10 @@ export function updateOwnNotificationPreferences(db, userId, payload) {
   }
   user.updatedAt = now();
 
-  return structuredClone(preferences);
+  return {
+    ...structuredClone(preferences),
+    telegramLinked: Boolean(user.telegramChatId)
+  };
 }
 
 function notificationBelongsToUser(item, userId) {
@@ -873,7 +897,7 @@ function buildWorkspaceNextActions(role, summary, notificationSummary, options =
 
   if (role === 'coordinator' || role === 'admin') {
     const leads = asPositiveNumber(summary?.leads);
-    const unsettledHolds = asPositiveNumber(summary?.unsettledConsultationHolds);
+    const unsettledPayments = asPositiveNumber(summary?.unsettledConsultationPayments);
     const consultations = asPositiveNumber(summary?.consultations);
 
     if (leads > 0) {
@@ -901,32 +925,32 @@ function buildWorkspaceNextActions(role, summary, notificationSummary, options =
       });
     }
 
-    if (unsettledHolds > 0) {
+    if (unsettledPayments > 0) {
       addAction({
-        id: `${role}-reconcile-holds`,
-        title: 'Reconcile unsettled holds',
-        detail: 'Investigate held consultation payments that remain unreconciled.',
+        id: `${role}-reconcile-payments`,
+        title: 'Review consultation payments',
+        detail: 'Review pending charges and manually refund cancelled consultations when required.',
         priority: role === 'admin' ? 'high' : 'critical',
         view: 'reports',
-        metricKey: 'unsettledConsultationHolds',
-        metricValue: unsettledHolds
+        metricKey: 'unsettledConsultationPayments',
+        metricValue: unsettledPayments
       });
     }
   }
 
   if (role === 'finance') {
-    const unsettledHolds = asPositiveNumber(summary?.unsettledConsultationHolds);
+    const unsettledPayments = asPositiveNumber(summary?.unsettledConsultationPayments);
     const consultations = asPositiveNumber(summary?.consultations);
 
-    if (unsettledHolds > 0) {
+    if (unsettledPayments > 0) {
       addAction({
-        id: 'finance-reconcile-holds',
-        title: 'Reconcile unsettled holds',
-        detail: 'Resolve outstanding consultation hold exceptions in settlement reports.',
+        id: 'finance-reconcile-payments',
+        title: 'Review consultation payments',
+        detail: 'Resolve pending charges and record any manual refunds in settlement reports.',
         priority: 'critical',
         view: 'reports',
-        metricKey: 'unsettledConsultationHolds',
-        metricValue: unsettledHolds
+        metricKey: 'unsettledConsultationPayments',
+        metricValue: unsettledPayments
       });
     }
 

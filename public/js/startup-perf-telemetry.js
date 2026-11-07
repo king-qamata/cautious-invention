@@ -146,11 +146,11 @@ export function createStartupPerfTelemetryController(deps) {
         const value = Number(item.durationMs);
         const isFiniteValue = Number.isFinite(value) && value >= 0;
         const height = isFiniteValue
-          ? Math.max(14, Math.round((value / Math.max(peak, 1)) * 56))
+          ? Math.max(14, Math.round((value / Math.max(peak, 1)) * 6) * 7 + 14)
           : 14;
-        const barClass = `perf-trend-bar${index === history.length - 1 ? ' latest' : ''}`;
+        const barClass = `perf-trend-bar perf-trend-bar-height-${height}${index === history.length - 1 ? ' latest' : ''}`;
         const label = isFiniteValue ? `${value}ms` : 'n/a';
-        return `<span class="${barClass}" style="height:${height}px" title="${e(label)}"></span>`;
+        return `<span class="${barClass}" title="${e(label)}"></span>`;
       }).join('')
       : '<span class="perf-trend-empty">No history yet.</span>';
     const avgLabel = avgDuration === null ? '--' : `${avgDuration} ms`;

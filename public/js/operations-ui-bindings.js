@@ -8,6 +8,7 @@ export function bindOperationsUiHandlers(deps) {
     loadReferrals,
     loadProviders,
     loadReports,
+    loadPatientPortal,
     loadConsultations,
     renderReferralDetail,
     specialtyForProcedure
@@ -15,6 +16,42 @@ export function bindOperationsUiHandlers(deps) {
 
   async function handleOperationsActionClick(button) {
     if (!button) return false;
+
+    if (button.id === 'refreshPatientPortal') {
+      await loadPatientPortal();
+      return true;
+    }
+
+    if (button.id === 'refreshOnboardingApplications') {
+      await loadProviders();
+      return true;
+    }
+
+    if (button.dataset.reviewOnboarding) {
+      await api(`/api/v1/onboarding/applications/${button.dataset.reviewOnboarding}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: button.dataset.reviewStatus })
+      });
+      notice(button.dataset.reviewStatus === 'approved'
+        ? 'Application approved. Access has been granted; clinician availability remains disabled.'
+        : 'Application rejected.');
+      await loadProviders();
+      return true;
+    }
+
+    if (button.dataset.acceptFamily) {
+      await api(`/api/v1/patient/family-invitations/${button.dataset.acceptFamily}/accept`, { method: 'POST' });
+      notice('Family case-status access accepted.');
+      await loadPatientPortal();
+      return true;
+    }
+
+    if (button.dataset.revokeFamily) {
+      await api(`/api/v1/patient/family-invitations/${button.dataset.revokeFamily}/revoke`, { method: 'POST' });
+      notice('Family access revoked.');
+      await loadPatientPortal();
+      return true;
+    }
 
     if (button.id === 'runClaimSweep') {
       await api('/api/v1/operations/jobs/release-unclaimed-consultations', { method: 'POST' });
@@ -136,6 +173,59 @@ export function bindOperationsUiHandlers(deps) {
         event.target.reset();
         notice('Provider added.');
         await Promise.all([loadProviders(), loadReports()]);
+      } catch (error) {
+        notice(error.message, true);
+      }
+    });
+  }
+
+  const reportFilters = qs('#reportFilters');
+  if (reportFilters) {
+    reportFilters.addEventListener('submit', (event) => {
+      event.preventDefault();
+      loadReports().catch((error) => notice(error.message, true));
+    });
+    reportFilters.addEventListener('reset', () => {
+      setTimeout(() => loadReports().catch((error) => notice(error.message, true)), 0);
+    });
+  }
+
+  const familyInviteForm = qs('#familyInviteForm');
+  if (familyInviteForm) {
+    familyInviteForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        await api('/api/v1/patient/family-invitations', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: form.get('email'),
+            consentGiven: familyInviteForm.elements.consentGiven.checked
+          })
+        });
+        familyInviteForm.reset();
+        notice('Family invitation created. The recipient can accept it after signing in.');
+        await loadPatientPortal();
+      } catch (error) {
+        notice(error.message, true);
+      }
+    });
+  }
+
+  for (const [formId, endpoint, label] of [
+    ['clinicianApplicationForm', '/api/v1/onboarding/clinician', 'Clinician application'],
+    ['providerStaffApplicationForm', '/api/v1/onboarding/provider-staff', 'Provider staff application']
+  ]) {
+    const formElement = qs(`#${formId}`);
+    if (!formElement) continue;
+    formElement.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(event.currentTarget));
+      try {
+        await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+        formElement.reset();
+        notice(`${label} submitted for administrator review.`);
+        await loadPatientPortal();
       } catch (error) {
         notice(error.message, true);
       }

@@ -22,8 +22,14 @@ export function createAuthSessionController(deps) {
     const compactSession = qs('#sessionUserCompact');
     if (compactSession) compactSession.textContent = signedInLabel;
     qs('#loginPanel').classList.toggle('hidden', Boolean(state.user));
+    qs('#registrationFlow')?.classList.add('hidden');
     qs('#userChip').classList.toggle('hidden', !state.user);
     qs('#logoutBtn').classList.toggle('hidden', !state.user);
+    const patientPortalLink = qs('.tabs [data-view="patient-portal"]');
+    const mobilePatientPortalLink = qs('.mobile-nav [data-view="patient-portal"]');
+    const canOpenPatientPortal = state.user?.role === 'patient';
+    patientPortalLink?.classList.toggle('hidden', !canOpenPatientPortal);
+    mobilePatientPortalLink?.classList.toggle('hidden', !canOpenPatientPortal);
     const logoutBtnMobile = qs('#logoutBtnMobile');
     if (logoutBtnMobile) logoutBtnMobile.classList.toggle('hidden', !state.user);
     if (state.user) {
@@ -66,6 +72,27 @@ export function createAuthSessionController(deps) {
     return data;
   }
 
+  async function registerPatient(payload) {
+    return api('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async function startVerification(payload) {
+    return api('/api/v1/auth/verification/start', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async function confirmVerification(payload) {
+    return api('/api/v1/auth/verification/confirm', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
   async function performLogout() {
     const callController = getCallController();
     await callController?.leaveCall({ notify: false, sendHangup: true, marker: 'ended' }).catch(() => null);
@@ -87,6 +114,9 @@ export function createAuthSessionController(deps) {
   return {
     renderSession,
     signIn,
+    registerPatient,
+    startVerification,
+    confirmVerification,
     performLogout
   };
 }

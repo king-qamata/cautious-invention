@@ -25,13 +25,15 @@ const ALERT_REMEDIATION_HINTS = {
   high_claim_conflict_rate:
     'Review clinician eligibility filters and queue fan-out; increase claim-window staffing or tune broadcast scope.',
   completed_without_captured_hold:
-    'Reconcile affected consultation holds immediately and verify completion transition always captures payment holds.',
+    'Reconcile the Paystack charge for each completed consultation; completion must follow successful payment verification.',
   cancelled_with_held_hold:
-    'Release held payments for cancelled consultations and inspect cancellation flow for release failures.',
+    'Inspect refund-required charges for cancelled consultations and record completed manual refunds.',
   requested_without_held_hold:
-    'Investigate consultation creation path to ensure REQUESTED state always creates a consultation_hold payment record.',
+    'Investigate consultation creation to ensure each request has a pending consultation charge record.',
+  started_without_verified_payment:
+    'Stop the consultation, verify the Paystack transaction, and investigate how an unpaid case entered IN_PROGRESS.',
   terminal_hold_unreconciled:
-    'Run billing reconciliation for terminal holds and update payment reconciliationStatus to reconciled when confirmed.'
+    'Reconcile completed charges and manual refunds, then update payment reconciliationStatus.'
 };
 
 function ensureCollections(db) {
@@ -105,9 +107,10 @@ const RISK_FLAG_LABELS = {
   claim_window_expired: 'Claim window expired',
   claim_window_low: 'Claim window close to expiry',
   in_progress_over_sla: 'In-progress duration exceeded SLA',
-  requested_missing_held_payment: 'Requested consultation missing held payment',
-  completed_missing_capture: 'Completed consultation missing hold capture',
-  cancelled_hold_not_released: 'Cancelled consultation still has held payment',
+  requested_missing_held_payment: 'Requested consultation missing payment record',
+  started_missing_verified_payment: 'In-progress consultation missing verified payment',
+  completed_missing_capture: 'Completed consultation missing verified payment',
+  cancelled_hold_not_released: 'Cancelled consultation has unresolved payment',
   verification_failed: 'Latest biometric verification failed',
   verification_pending: 'Verification pending for super-priority consultation',
   missing_active_communication_layer: 'In-progress consultation missing active communication layer',
@@ -207,7 +210,7 @@ function consultationRiskSummary(db, consultation) {
   let score = 0;
   const flags = [];
   const nowMs = Date.now();
-  const hold = activeHoldPayment(db, consultation.id);
+  const payment = activeHoldPayment(db, consultation.id);
   const latestHook = db.biometricVerifications
     .filter((item) => item.consultationId === consultation.id)
     .sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt))[0] || null;
@@ -236,15 +239,15 @@ function consultationRiskSummary(db, consultation) {
     if (elapsedMinutes > DEFAULT_IN_PROGRESS_SLA_MINUTES) flags.push('in_progress_over_sla');
   }
 
-  if (consultation.status === 'REQUESTED' && (!hold || hold.status !== 'held')) {
+  if (consultation.status === 'IN_PROGRESS' && (!payment || payment.status !== 'captured')) {
     score += 38;
-    flags.push('requested_missing_held_payment');
+    flags.push('started_missing_verified_payment');
   }
-  if (consultation.status === 'COMPLETED' && (!hold || hold.status !== 'captured')) {
+  if (consultation.status === 'COMPLETED' && (!payment || payment.status !== 'captured')) {
     score += 42;
     flags.push('completed_missing_capture');
   }
-  if (consultation.status === 'CANCELLED' && hold?.status === 'held') {
+  if (consultation.status === 'CANCELLED' && payment?.status === 'refund_required') {
     score += 34;
     flags.push('cancelled_hold_not_released');
   }
@@ -556,6 +559,8 @@ function notify(db, consultation, channel, recipient, subject, body, userId = nu
   const eventKey = normalizeString(metadata.eventKey, 80) || null;
   const notificationType = normalizeString(metadata.notificationType, 40).toLowerCase() || 'consultation';
   const severity = normalizeString(metadata.severity, 20).toLowerCase() || 'info';
+  const isExternalMessage = ['whatsapp', 'telegram'].includes(channel);
+  const timestamp = now();
 
   db.notificationLogs.push({
     id: makeId('notification'),
@@ -569,13 +574,18 @@ function notify(db, consultation, channel, recipient, subject, body, userId = nu
     eventKey,
     notificationType,
     severity,
-    status: 'sent',
-    provider: 'mvp-log',
-    providerReference: makeId('delivery'),
+    status: isExternalMessage ? 'queued' : 'sent',
+    provider: channel === 'whatsapp'
+      ? 'whatsapp-cloud-api'
+      : channel === 'telegram'
+        ? 'telegram-bot-api'
+        : 'mvp-log',
+    providerReference: isExternalMessage ? null : makeId('delivery'),
     failureReason: null,
-    sentAt: now(),
-    createdAt: now(),
-    updatedAt: now()
+    deliveryAttempts: 0,
+    sentAt: isExternalMessage ? null : timestamp,
+    createdAt: timestamp,
+    updatedAt: timestamp
   });
 }
 
@@ -583,7 +593,7 @@ function consultationRecipient(patient) {
   return patient?.phone || patient?.email || 'unknown';
 }
 
-const SUPPORTED_NOTIFICATION_CHANNELS = ['sms', 'email', 'in_app'];
+const SUPPORTED_NOTIFICATION_CHANNELS = ['sms', 'email', 'in_app', 'whatsapp', 'telegram'];
 
 function normalizeChannelList(value) {
   if (!Array.isArray(value)) return [];
@@ -665,6 +675,8 @@ function emailCopyEnabledForTarget(target) {
 
 function availableChannelRecipient(target, channel) {
   if (channel === 'sms' && target.phone) return target.phone;
+  if (channel === 'whatsapp' && target.phone) return target.phone;
+  if (channel === 'telegram' && target.telegramChatId) return target.telegramChatId;
   if (channel === 'email' && target.email) return target.email;
   if (channel === 'in_app' && target.userId) return `user:${target.userId}`;
   return null;
@@ -695,7 +707,8 @@ function notificationTargetsForAudience(db, consultation, audience) {
         user: patientUser,
         patient,
         phone: patient?.phone || patientUser?.phone || '',
-        email: patient?.email || patientUser?.email || ''
+        email: patient?.email || patientUser?.email || '',
+        telegramChatId: patientUser?.telegramChatId || ''
       }
     ];
   }
@@ -712,7 +725,8 @@ function notificationTargetsForAudience(db, consultation, audience) {
         user: clinician,
         patient: null,
         phone: clinician.phone || '',
-        email: clinician.email || ''
+        email: clinician.email || '',
+        telegramChatId: clinician.telegramChatId || ''
       }
     ];
   }
@@ -727,7 +741,8 @@ function notificationTargetsForAudience(db, consultation, audience) {
         user: clinician,
         patient: null,
         phone: clinician.phone || '',
-        email: clinician.email || ''
+        email: clinician.email || '',
+        telegramChatId: clinician.telegramChatId || ''
       }));
   }
 
@@ -740,7 +755,8 @@ function notificationTargetsForAudience(db, consultation, audience) {
         user: coordinator,
         patient: null,
         phone: coordinator.phone || '',
-        email: coordinator.email || ''
+        email: coordinator.email || '',
+        telegramChatId: coordinator.telegramChatId || ''
       }));
   }
 
@@ -819,7 +835,132 @@ function consultationByNumberOrId(db, key) {
 }
 
 function activeHoldPayment(db, consultationId) {
-  return db.payments.find((item) => item.consultationId === consultationId && item.paymentType === 'consultation_hold');
+  return db.payments
+    .filter((item) =>
+      item.consultationId === consultationId &&
+      ['consultation_charge', 'consultation_hold'].includes(item.paymentType)
+    )
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+}
+
+export function reserveConsultationPayment(db, user, consultationId, reference) {
+  ensureCollections(db);
+  assertRole(user, ['patient']);
+  const consultation = consultationByNumberOrId(db, consultationId);
+  if (!consultation || consultation.patientId !== user.patientId) {
+    const error = new Error('Consultation not found.');
+    error.status = 404;
+    throw error;
+  }
+  if (consultation.status !== 'DOCTOR_ACCEPTED') {
+    const error = new Error('Payment can be made only after a doctor accepts the request and before the consultation starts.');
+    error.status = 409;
+    throw error;
+  }
+
+  const payment = activeHoldPayment(db, consultation.id);
+  if (payment?.paymentType === 'consultation_charge' && payment.status === 'captured') {
+    const error = new Error('This consultation has already been paid.');
+    error.status = 409;
+    throw error;
+  }
+  if (payment?.paymentType === 'consultation_charge' && payment.status === 'refund_required') {
+    const error = new Error('This payment is being reviewed for a manual refund.');
+    error.status = 409;
+    throw error;
+  }
+  if (payment?.paymentType === 'consultation_charge' && payment.status === 'pending') {
+    if (payment.authorizationUrl) return { authorizationUrl: payment.authorizationUrl };
+    const error = new Error('Payment checkout is already being initialized. Please try again shortly.');
+    error.status = 409;
+    throw error;
+  }
+  if (payment?.paymentType === 'consultation_charge' && payment.status === 'initializing') {
+    const error = new Error('Payment checkout is already being initialized. Please try again shortly.');
+    error.status = 409;
+    throw error;
+  }
+
+  const patient = db.patients.find((item) => item.id === consultation.patientId);
+  const email = normalizeString(patient?.email || user.email, 254).toLowerCase();
+  if (!email) {
+    const error = new Error('Add a valid email address before starting payment.');
+    error.status = 422;
+    throw error;
+  }
+  const timestamp = now();
+  const attempt = {
+    id: makeId('payment'),
+    referralId: null,
+    consultationId: consultation.id,
+    consultationNumber: consultation.consultationNumber,
+    patientId: patient.id,
+    amount: consultation.amountNgn,
+    currency: 'NGN',
+    paymentType: 'consultation_charge',
+    status: 'initializing',
+    paymentMethod: 'paystack',
+    gateway: 'paystack',
+    transactionReference: reference,
+    providerPayoutAmount: null,
+    reconciliationStatus: 'unreconciled',
+    paidAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+  db.payments.push(attempt);
+  return {
+    payment: attempt,
+    patient: { id: patient.id, email }
+  };
+}
+
+export function applySuccessfulConsultationPayment(db, transaction) {
+  ensureCollections(db);
+  const reference = normalizeString(transaction?.reference, 255);
+  const payment = db.payments.find(
+    (item) => item.paymentType === 'consultation_charge' && item.transactionReference === reference
+  );
+  if (!payment) {
+    const error = new Error('No consultation payment matches this Paystack reference.');
+    error.status = 404;
+    throw error;
+  }
+  const amountKobo = Math.round(Number(payment.amount) * 100);
+  if (
+    String(transaction?.status || '').toLowerCase() !== 'success' ||
+    Number(transaction?.amount) !== amountKobo ||
+    String(transaction?.currency || '').toUpperCase() !== payment.currency
+  ) {
+    const error = new Error('Paystack transaction status, amount, or currency does not match the payment.');
+    error.status = 422;
+    throw error;
+  }
+  const consultation = db.consultations.find((item) => item.id === payment.consultationId);
+  if (!consultation) {
+    const error = new Error('Consultation for this payment was not found.');
+    error.status = 404;
+    throw error;
+  }
+  if (['captured', 'refund_required'].includes(payment.status)) {
+    return { applied: false, duplicate: true, payment };
+  }
+
+  const timestamp = now();
+  payment.gatewayTransactionId = transaction.id ? String(transaction.id) : null;
+  payment.gatewayStatus = 'success';
+  payment.paidAt = transaction.paidAt || timestamp;
+  payment.updatedAt = timestamp;
+  payment.reconciliationStatus = 'reconciled';
+  if (consultation.status === 'CANCELLED') {
+    payment.status = 'refund_required';
+    payment.refundRequiredAt = timestamp;
+    payment.refundReason = consultation.cancelReason || 'consultation_cancelled';
+    payment.reconciliationStatus = 'manual_refund_required';
+  } else {
+    payment.status = 'captured';
+  }
+  return { applied: true, duplicate: false, payment };
 }
 
 function addConsultationStatusHistory(consultation, fromStatus, toStatus, changedByUserId, note = '') {
@@ -976,7 +1117,7 @@ function expandConsultation(db, consultation) {
   if (!consultation) return null;
   const patient = db.patients.find((item) => item.id === consultation.patientId) || null;
   const assignedClinician = db.users.find((item) => item.id === consultation.assignedClinicianId) || null;
-  const holdPayment = activeHoldPayment(db, consultation.id) || null;
+  const consultationPayment = activeHoldPayment(db, consultation.id) || null;
   const hooks = db.biometricVerifications
     .filter((item) => item.consultationId === consultation.id)
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -987,7 +1128,7 @@ function expandConsultation(db, consultation) {
     ...consultation,
     patient,
     assignedClinician: expandAssignedClinicianProfile(db, assignedClinician),
-    holdPayment,
+    consultationPayment,
     biometricSummary: {
       total: hooks.length,
       latestStatus: latestHook?.status || null,
@@ -1098,12 +1239,15 @@ function buildConsultationEventLog(db, consultation) {
     });
   }
 
-  for (const payment of db.payments.filter((item) => item.consultationId === consultationId && item.paymentType === 'consultation_hold')) {
+  for (const payment of db.payments.filter((item) =>
+    item.consultationId === consultationId &&
+    ['consultation_charge', 'consultation_hold'].includes(item.paymentType)
+  )) {
     timeline.push({
       id: payment.id,
       kind: 'payment',
       at: payment.updatedAt || payment.createdAt,
-      message: `Hold payment ${payment.status} (NGN ${payment.amount})`,
+      message: `Consultation payment ${payment.status} (NGN ${payment.amount})`,
       actorId: null,
       details: {
         status: payment.status,
@@ -1244,24 +1388,6 @@ export function createConsultation(db, user, payload) {
   addConsultationStatusHistory(consultation, null, 'REQUESTED', user.id, 'Consultation requested.');
   db.consultations.push(consultation);
 
-  db.payments.push({
-    id: makeId('payment'),
-    referralId: null,
-    consultationId: consultation.id,
-    patientId: patient.id,
-    amount: tier.price,
-    currency: 'NGN',
-    paymentType: 'consultation_hold',
-    status: 'held',
-    paymentMethod: normalizeString(payload.paymentMethod || 'card', 50),
-    transactionReference: normalizeString(payload.transactionReference || makeId('txn_hold'), 255),
-    providerPayoutAmount: null,
-    reconciliationStatus: 'unreconciled',
-    paidAt: null,
-    createdAt: timestamp,
-    updatedAt: timestamp
-  });
-
   sendConsultationEventNotifications(db, consultation, {
     eventKey: 'consultation_request_created',
     audiences: ['patient', 'eligible_clinicians', 'coordinator'],
@@ -1271,7 +1397,7 @@ export function createConsultation(db, user, payload) {
       coordinator: 'New consultation request submitted'
     },
     body: {
-      patient: `${consultation.consultationNumber} is now broadcasting to available doctors.`,
+      patient: `${consultation.consultationNumber} is now broadcasting to available doctors. No payment is taken until a doctor accepts.`,
       eligible_clinicians: `${consultation.consultationNumber} is available to claim in your queue.`,
       coordinator: `${consultation.consultationNumber} was submitted and is broadcasting to eligible clinicians.`
     }
@@ -1364,7 +1490,7 @@ export function claimConsultation(db, user, consultationId) {
       coordinator: 'Consultation claimed by clinician'
     },
     body: {
-      patient: `${consultation.consultationNumber} has been accepted by a doctor.`,
+      patient: `${consultation.consultationNumber} has been accepted. Complete payment before the appointment starts.`,
       clinician: `You successfully claimed ${consultation.consultationNumber}.`,
       coordinator: `${consultation.consultationNumber} was claimed and is ready for consultation start.`
     }
@@ -1392,6 +1518,13 @@ export function startConsultation(db, user, consultationId, payload = {}) {
   if (consultation.status !== 'DOCTOR_ACCEPTED') {
     const error = new Error('Consultation must be doctor-accepted before it can start.');
     error.status = 422;
+    throw error;
+  }
+
+  const payment = activeHoldPayment(db, consultation.id);
+  if (payment?.status !== 'captured' || Number(payment.amount) !== Number(consultation.amountNgn)) {
+    const error = new Error('Successful payment verification is required before the consultation can start.');
+    error.status = 409;
     throw error;
   }
 
@@ -1449,6 +1582,12 @@ export function escalateConsultationTier(db, user, consultationId, payload) {
   const targetTier = assertConsultationTier(nextTier);
   const timestamp = now();
 
+  if (activeHoldPayment(db, consultation.id)?.status === 'captured') {
+    const error = new Error('A paid consultation cannot be upgraded in-session. Arrange a new payment plan before changing its tier.');
+    error.status = 409;
+    throw error;
+  }
+
   consultation.escalationHistory.push({
     id: makeId('consultation_escalation'),
     fromTier: consultation.tier,
@@ -1460,12 +1599,6 @@ export function escalateConsultationTier(db, user, consultationId, payload) {
   consultation.tier = nextTier;
   consultation.amountNgn = targetTier.price;
   consultation.updatedAt = timestamp;
-
-  const hold = activeHoldPayment(db, consultation.id);
-  if (hold && hold.status === 'held') {
-    hold.amount = targetTier.price;
-    hold.updatedAt = timestamp;
-  }
 
   const patient = db.patients.find((item) => item.id === consultation.patientId);
   sendConsultationEventNotifications(db, consultation, {
@@ -1514,15 +1647,15 @@ export function completeConsultation(db, user, consultationId) {
     throw error;
   }
 
+  const hold = activeHoldPayment(db, consultation.id);
+  if (!hold || hold.status !== 'captured') {
+    const error = new Error('A verified Paystack payment is required before completing this consultation.');
+    error.status = 409;
+    throw error;
+  }
+
   transitionConsultation(consultation, 'IN_PROGRESS', 'COMPLETED', user.id, 'Consultation completed.');
   consultation.completedAt = now();
-
-  const hold = activeHoldPayment(db, consultation.id);
-  if (hold && hold.status === 'held') {
-    hold.status = 'captured';
-    hold.paidAt = consultation.completedAt;
-    hold.updatedAt = consultation.completedAt;
-  }
 
   const patient = db.patients.find((item) => item.id === consultation.patientId);
   sendConsultationEventNotifications(db, consultation, {
@@ -1535,9 +1668,9 @@ export function completeConsultation(db, user, consultationId) {
       coordinator: 'Consultation completed'
     },
     body: {
-      patient: `${consultation.consultationNumber} is completed and your payment hold has been captured.`,
+      patient: `${consultation.consultationNumber} is completed. Your payment was charged after doctor acceptance.`,
       clinician: `${consultation.consultationNumber} has been completed successfully.`,
-      coordinator: `${consultation.consultationNumber} has completed and billing hold is finalized.`
+      coordinator: `${consultation.consultationNumber} has completed with its verified payment recorded.`
     }
   });
 
@@ -1587,9 +1720,9 @@ export function cancelConsultation(db, user, consultationId, payload = {}) {
       coordinator: 'Consultation cancelled'
     },
     body: {
-      patient: `${consultation.consultationNumber} was cancelled and your payment hold has been released.`,
+      patient: `${consultation.consultationNumber} was cancelled. Any successful charge requires a manual refund review.`,
       clinician: `${consultation.consultationNumber} was cancelled and removed from active workflow.`,
-      coordinator: `${consultation.consultationNumber} was cancelled and hold release has been recorded.`
+      coordinator: `${consultation.consultationNumber} was cancelled; check for any manual refund requirement.`
     }
   });
   audit(db, user.id, 'cancelled', 'consultation', consultation.id, { reason: consultation.cancelReason || null });
@@ -1599,11 +1732,17 @@ export function cancelConsultation(db, user, consultationId, payload = {}) {
 function releaseConsultationHold(db, consultation, reason) {
   const hold = activeHoldPayment(db, consultation.id);
   const timestamp = now();
-  if (hold && hold.status === 'held') {
-    hold.status = 'released';
+  if (hold && ['pending', 'initializing'].includes(hold.status)) {
+    hold.status = 'voided';
     hold.updatedAt = timestamp;
-    hold.releasedAt = timestamp;
-    hold.releaseReason = reason;
+    hold.voidedAt = timestamp;
+    hold.voidReason = reason;
+  } else if (hold?.status === 'captured') {
+    hold.status = 'refund_required';
+    hold.updatedAt = timestamp;
+    hold.refundRequiredAt = timestamp;
+    hold.refundReason = reason;
+    hold.reconciliationStatus = 'manual_refund_required';
   }
 }
 
@@ -2658,13 +2797,12 @@ export function consultationOperationalSnapshot(db) {
     return new Date(item.acceptedAt).getTime() - new Date(item.createdAt).getTime() <= CLAIM_WINDOW_MS;
   }).length;
 
-  const holdCaptured = db.payments.filter(
-    (item) => item.consultationId && item.paymentType === 'consultation_hold' && item.status === 'captured'
-  ).length;
-  const holdReleased = db.payments.filter(
-    (item) => item.consultationId && item.paymentType === 'consultation_hold' && item.status === 'released'
-  ).length;
-  const holdTotalResolved = holdCaptured + holdReleased;
+  const consultationPayments = db.payments.filter((item) =>
+    item.consultationId && ['consultation_charge', 'consultation_hold'].includes(item.paymentType)
+  );
+  const holdCaptured = consultationPayments.filter((item) => item.status === 'captured').length;
+  const refundRequired = consultationPayments.filter((item) => item.status === 'refund_required').length;
+  const holdTotalResolved = holdCaptured + refundRequired;
 
   const interactionsLast24h = db.consultationInteractions.filter((item) => {
     const createdAtMs = new Date(item.createdAt).getTime();
@@ -2770,9 +2908,9 @@ export function consultationOperationalSnapshot(db) {
     p90ClaimTimeSeconds,
     claimFillRatePercent: all.length ? Math.round((withinWindowCount / all.length) * 1000) / 10 : 0,
     holdCaptured,
-    holdReleased,
-    holdReleaseRatePercent: holdTotalResolved
-      ? Math.round((holdReleased / holdTotalResolved) * 1000) / 10
+    refundRequired,
+    manualRefundRatePercent: holdTotalResolved
+      ? Math.round((refundRequired / holdTotalResolved) * 1000) / 10
       : 0,
     riskDistribution,
     criticalRiskPercent: all.length ? Math.round((riskDistribution.critical / all.length) * 1000) / 10 : 0,
@@ -2836,23 +2974,23 @@ export function consultationOperationalAlerts(db, options = {}) {
     return !hold || hold.status !== 'captured';
   }).length;
 
-  const cancelledWithHeldHold = db.consultations.filter((consultation) => {
+  const cancelledWithRefundRequired = db.consultations.filter((consultation) => {
     if (consultation.status !== 'CANCELLED') return false;
     const hold = activeHoldPayment(db, consultation.id);
-    return Boolean(hold && hold.status === 'held');
+    return Boolean(hold && hold.status === 'refund_required');
   }).length;
 
-  const requestedWithoutHeldHold = db.consultations.filter((consultation) => {
-    if (consultation.status !== 'REQUESTED') return false;
-    const hold = activeHoldPayment(db, consultation.id);
-    return !hold || hold.status !== 'held';
+  const startedWithoutVerifiedPayment = db.consultations.filter((consultation) => {
+    if (consultation.status !== 'IN_PROGRESS') return false;
+    const payment = activeHoldPayment(db, consultation.id);
+    return !payment || payment.status !== 'captured';
   }).length;
 
-  const unreconciledTerminalHolds = db.payments.filter((payment) => {
-    if (!payment.consultationId || payment.paymentType !== 'consultation_hold') return false;
-    if (!['captured', 'released'].includes(payment.status)) return false;
-    if (payment.reconciliationStatus === 'reconciled') return false;
-    const terminalAtMs = new Date(payment.updatedAt || payment.paidAt || payment.releasedAt || payment.createdAt).getTime();
+  const unreconciledTerminalPayments = db.payments.filter((payment) => {
+    if (!payment.consultationId || !['consultation_charge', 'consultation_hold'].includes(payment.paymentType)) return false;
+    if (!['captured', 'refund_required', 'released', 'voided'].includes(payment.status)) return false;
+    if (payment.reconciliationStatus === 'reconciled' || payment.reconciliationStatus === 'manual_refund_required') return false;
+    const terminalAtMs = new Date(payment.updatedAt || payment.paidAt || payment.voidedAt || payment.createdAt).getTime();
     if (!Number.isFinite(terminalAtMs)) return false;
     return (nowMs - terminalAtMs) / 60000 > terminalHoldReconciliationGraceMinutes;
   }).length;
@@ -2875,10 +3013,10 @@ export function consultationOperationalAlerts(db, options = {}) {
   addAlert('consultations_stuck_requested', 'warning', requestedPastWindow, 'Requested consultations are past claim window and still open.');
   addAlert('consultations_stuck_in_progress', 'critical', inProgressOverSla, 'In-progress consultations exceeded configured SLA duration.');
   addAlert('high_claim_conflict_rate', 'warning', claimConflicts > claimConflictThreshold ? claimConflicts : 0, 'Claim conflict attempts exceeded threshold.');
-  addAlert('completed_without_captured_hold', 'critical', completedWithoutCapturedHold, 'Completed consultations are missing captured hold payments.');
-  addAlert('cancelled_with_held_hold', 'critical', cancelledWithHeldHold, 'Cancelled consultations still have held payment status.');
-  addAlert('requested_without_held_hold', 'critical', requestedWithoutHeldHold, 'Requested consultations are missing held payment records.');
-  addAlert('terminal_hold_unreconciled', 'warning', unreconciledTerminalHolds, 'Terminal hold payments remain unreconciled beyond grace period.');
+  addAlert('completed_without_captured_hold', 'critical', completedWithoutCapturedHold, 'Completed consultations are missing verified payments.');
+  addAlert('cancelled_with_held_hold', 'critical', cancelledWithRefundRequired, 'Cancelled consultations require a manual refund.');
+  addAlert('started_without_verified_payment', 'critical', startedWithoutVerifiedPayment, 'In-progress consultations are missing verified payments.');
+  addAlert('terminal_hold_unreconciled', 'warning', unreconciledTerminalPayments, 'Terminal consultation payments need reconciliation.');
 
   const highestSeverity = alertDetails.some((item) => item.severity === 'critical')
     ? 'critical'
@@ -2905,9 +3043,10 @@ export function consultationOperationalAlerts(db, options = {}) {
     },
     payments: {
       completedWithoutCapturedHold,
-      cancelledWithHeldHold,
-      requestedWithoutHeldHold,
-      unreconciledTerminalHolds
+      cancelledWithHeldHold: cancelledWithRefundRequired,
+      requestedWithoutHeldHold: 0,
+      startedWithoutVerifiedPayment,
+      unreconciledTerminalHolds: unreconciledTerminalPayments
     },
     alerts,
     alertDetails

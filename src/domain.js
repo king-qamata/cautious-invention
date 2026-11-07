@@ -105,7 +105,7 @@ export function now() {
 
 export function publicUser(user) {
   if (!user) return null;
-  const { passwordHash, ...safe } = user;
+  const { passwordHash, telegramChatId, ...safe } = user;
   return safe;
 }
 
@@ -205,19 +205,37 @@ export function assertProcedureForSpecialty(db, specialtyId, procedureId) {
 export function recommendProviders(db, referral, limit = 5) {
   const patient = db.patients.find((item) => item.id === referral.patientId);
   return db.providers
-    .filter((provider) => provider.isActive)
+    .filter((provider) => provider.isActive && provider.onboardingStatus === 'active')
     .map((provider) => {
       const capability = db.providerProcedures.find(
         (item) => item.providerId === provider.id && item.procedureId === referral.procedureId
       );
       if (!capability || capability.availability === 'unavailable') return null;
       let score = 40;
-      if (provider.city && patient?.city && provider.city.toLowerCase() === patient.city.toLowerCase()) score += 25;
-      if (capability.availability === 'available') score += 20;
-      if (capability.availability === 'limited') score += 8;
-      score += Math.round((Number(provider.rating) || 0) * 3);
-      score -= Math.min(Number(capability.waitingTimeDays) || 0, 30);
-      return { ...provider, match: capability, score };
+      const scoreBreakdown = [{ factor: 'eligible_procedure', points: 40 }];
+      if (provider.city && patient?.city && provider.city.toLowerCase() === patient.city.toLowerCase()) {
+        score += 25;
+        scoreBreakdown.push({ factor: 'same_city', points: 25 });
+      }
+      if (capability.availability === 'available') {
+        score += 20;
+        scoreBreakdown.push({ factor: 'available', points: 20 });
+      }
+      if (capability.availability === 'limited') {
+        score += 8;
+        scoreBreakdown.push({ factor: 'limited_availability', points: 8 });
+      }
+      const ratingPoints = Math.round((Number(provider.rating) || 0) * 3);
+      if (ratingPoints) {
+        score += ratingPoints;
+        scoreBreakdown.push({ factor: 'provider_rating', points: ratingPoints });
+      }
+      const waitPenalty = Math.min(Number(capability.waitingTimeDays) || 0, 30);
+      if (waitPenalty) {
+        score -= waitPenalty;
+        scoreBreakdown.push({ factor: 'waiting_days', points: -waitPenalty });
+      }
+      return { ...provider, match: capability, score, scoreBreakdown };
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score)
@@ -293,6 +311,7 @@ export function seedDatabase() {
         updatedAt: createdAt
       }
     ],
+    verificationChallenges: [],
     sessions: [],
     patients: [
       {
@@ -310,6 +329,8 @@ export function seedDatabase() {
       }
     ],
     leads: [],
+    onboardingApplications: [],
+    familyInvitations: [],
     specialties: [
       { id: cardiologyId, name: 'Cardiology', description: 'Heart and cardiovascular care', createdAt, updatedAt: createdAt },
       { id: nephrologyId, name: 'Nephrology', description: 'Kidney care and dialysis support', createdAt, updatedAt: createdAt }

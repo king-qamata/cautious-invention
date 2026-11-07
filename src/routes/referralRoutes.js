@@ -135,12 +135,14 @@ export async function handleReferralRoutes(context) {
         throw error;
       }
       if (body.assignedProviderId) {
-        const provider = db.providers.find((item) => item.id === body.assignedProviderId && item.isActive);
+        const provider = db.providers.find(
+          (item) => item.id === body.assignedProviderId && item.isActive && item.onboardingStatus === 'active'
+        );
         const capability = db.providerProcedures.find(
           (item) => item.providerId === body.assignedProviderId && item.procedureId === referral.procedureId
         );
         if (!provider || !capability || capability.availability === 'unavailable') {
-          const error = new Error('The selected provider cannot deliver this referral procedure.');
+          const error = new Error('The selected provider is not active or cannot deliver this referral procedure.');
           error.status = 422;
           throw error;
         }

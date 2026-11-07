@@ -61,7 +61,7 @@ const ACCOUNT_ROLE_PROFILES = {
     operations: [
       { title: 'Clear intake bottlenecks', detail: 'Resolve aged leads and route new requests quickly.', metricKey: 'leads', actionLabel: 'Open intake queue', view: 'intake', alertWhenPositive: true },
       { title: 'Advance referral states', detail: 'Prioritize under-review and rematch cases to shorten cycle time.', metricKey: 'referrals', actionLabel: 'Open referral pipeline', view: 'referrals', alertWhenPositive: true },
-      { title: 'Watch consultation holds', detail: 'Track unsettled consultation holds and reconcile anomalies.', metricKey: 'unsettledConsultationHolds', actionLabel: 'Open reports', view: 'reports', alertWhenPositive: true }
+      { title: 'Review consultation payments', detail: 'Track pending charges and cancelled consultations that need a manual refund.', metricKey: 'unsettledConsultationPayments', actionLabel: 'Open reports', view: 'reports', alertWhenPositive: true }
     ]
   },
   admin: {
@@ -80,7 +80,7 @@ const ACCOUNT_ROLE_PROFILES = {
     ],
     operations: [
       { title: 'Review platform throughput', detail: 'Track load across leads, referrals, consultations, and appointments.', metricKey: 'consultations', actionLabel: 'Open reports', view: 'reports', alertWhenPositive: true },
-      { title: 'Audit pending payment holds', detail: 'Investigate unreconciled holds and keep payment integrity clean.', metricKey: 'unsettledConsultationHolds', actionLabel: 'Open reports', view: 'reports', alertWhenPositive: true },
+      { title: 'Review consultation payments', detail: 'Investigate pending charges and manual-refund follow-up.', metricKey: 'unsettledConsultationPayments', actionLabel: 'Open reports', view: 'reports', alertWhenPositive: true },
       { title: 'Run profile and credential hygiene', detail: 'Rotate password and verify notification routing fallback.', actionLabel: 'Open security controls', screen: 'security' }
     ]
   },
@@ -94,12 +94,12 @@ const ACCOUNT_ROLE_PROFILES = {
     ],
     screenLibrary: [
       { title: 'Finance profile', caption: 'Account identity and finance contacts', badge: 'Identity', screen: 'profile', actionLabel: 'Edit profile' },
-      { title: 'Hold reconciliation', caption: 'Consultation holds needing financial follow-through', badge: 'Payments', view: 'reports', actionLabel: 'Open reports', metricKey: 'unsettledConsultationHolds' },
+      { title: 'Payment reconciliation', caption: 'Consultation charges and manual refunds needing financial follow-through', badge: 'Payments', view: 'reports', actionLabel: 'Open reports', metricKey: 'unsettledConsultationPayments' },
       { title: 'Operational queue', caption: 'Consultation volume affecting settlement pressure', badge: 'Queue', view: 'consultations', queuePreset: 'critical_followup', actionLabel: 'Open consultations', metricKey: 'consultations' },
       { title: 'Alert stream', caption: 'Critical account and referral notifications', badge: 'Alerts', screen: 'notifications', actionLabel: 'Open notifications' }
     ],
     operations: [
-      { title: 'Reconcile unsettled holds', detail: 'Prioritize consultation hold exceptions to reduce payment drift.', metricKey: 'unsettledConsultationHolds', actionLabel: 'Open reports', view: 'reports', alertWhenPositive: true },
+      { title: 'Review consultation payments', detail: 'Prioritize pending charges and manual refunds.', metricKey: 'unsettledConsultationPayments', actionLabel: 'Open reports', view: 'reports', alertWhenPositive: true },
       { title: 'Track consultation demand impact', detail: 'Use queue load as an early signal for settlement operations.', metricKey: 'consultations', actionLabel: 'Open consultations', view: 'consultations', queuePreset: 'critical_followup' },
       { title: 'Triaging payment-related alerts', detail: 'Use filtered inbox views for high-priority communication events.', actionLabel: 'Open notification center', screen: 'notifications' }
     ]
@@ -253,6 +253,19 @@ export function createAccountWorkspaceController(deps) {
     const emailCopyInput = notificationPreferencesForm.querySelector('input[name="emailCopyEnabled"]');
     if (emailCopyInput) {
       emailCopyInput.checked = Boolean(emailCopyEnabled);
+    }
+
+    const telegramLinkStatus = qs('#telegramLinkStatus');
+    if (telegramLinkStatus) {
+      telegramLinkStatus.textContent = preferences?.telegramLinked
+        ? 'Telegram account linked. Select Telegram above to receive consultation updates.'
+        : 'Telegram is not linked. Link your account before selecting Telegram notifications.';
+    }
+
+    const telegramLinkResult = qs('#telegramLinkResult');
+    if (telegramLinkResult) {
+      telegramLinkResult.replaceChildren();
+      telegramLinkResult.classList.add('hidden');
     }
   }
 

@@ -25,7 +25,9 @@ import {
   recordConsultationInteraction,
   recordConsultationCallAuditEvent,
   recordBiometricHook,
-  startConsultation,
+  startConsultation as startConsultationService,
+  applySuccessfulConsultationPayment,
+  reserveConsultationPayment,
   switchConsultationCommunicationLayer,
   transitionConsultationCallSessionState,
   triggerClaimWindowSweep
@@ -47,7 +49,30 @@ function getUser(db, role) {
   return user;
 }
 
-test('consultation request creates a payment hold and starts in REQUESTED', () => {
+function markConsultationPaid(db, patient, consultationId) {
+  const payment = reserveConsultationPayment(db, patient, consultationId, `test_${consultationId}`);
+  return applySuccessfulConsultationPayment(db, {
+    reference: payment.payment.transactionReference,
+    status: 'success',
+    amount: Math.round(payment.payment.amount * 100),
+    currency: payment.payment.currency,
+    id: `gateway_${consultationId}`
+  });
+}
+
+function startConsultation(db, user, consultationId, payload) {
+  const consultation = db.consultations.find((item) => item.id === consultationId);
+  if (consultation?.status === 'DOCTOR_ACCEPTED') {
+    const patient = db.users.find((item) => item.patientId === consultation.patientId);
+    const payment = db.payments.find((item) =>
+      item.consultationId === consultationId && item.paymentType === 'consultation_charge'
+    );
+    if (!payment || payment.status !== 'captured') markConsultationPaid(db, patient, consultationId);
+  }
+  return startConsultationService(db, user, consultationId, payload);
+}
+
+test('consultation request starts in REQUESTED without charging before clinician acceptance', () => {
   const db = seedDatabase();
   const patient = getUser(db, 'patient');
 
@@ -59,8 +84,51 @@ test('consultation request creates a payment hold and starts in REQUESTED', () =
 
   assert.equal(consultation.status, 'REQUESTED');
   assert.equal(consultation.tier, 'priority');
-  assert.equal(consultation.holdPayment.status, 'held');
-  assert.equal(consultation.holdPayment.amount, 5000);
+  assert.equal(consultation.consultationPayment, null);
+  assert.equal(db.payments.some((item) => item.consultationId === consultation.id), false);
+});
+
+test('consultation requires a verified Paystack charge before clinician start', () => {
+  const db = seedDatabase();
+  const patient = getUser(db, 'patient');
+  const clinician = getUser(db, 'clinician');
+  const consultation = createConsultation(db, patient, {
+    requestedNeed: 'Payment timing check',
+    tier: 'priority'
+  });
+  claimConsultation(db, clinician, consultation.id);
+
+  assert.throws(
+    () => startConsultationService(db, clinician, consultation.id),
+    /Successful payment verification is required/
+  );
+  const reservation = reserveConsultationPayment(db, patient, consultation.id, `test_${consultation.id}`);
+  assert.equal(reservation.payment.amount, 5000);
+  const confirmed = applySuccessfulConsultationPayment(db, {
+    reference: reservation.payment.transactionReference,
+    status: 'success',
+    amount: 500000,
+    currency: 'NGN',
+    id: 'gateway_payment_1'
+  });
+  assert.equal(confirmed.payment.status, 'captured');
+  assert.equal(startConsultationService(db, clinician, consultation.id).status, 'IN_PROGRESS');
+});
+
+test('cancelling a charged consultation flags manual refund instead of issuing one', () => {
+  const db = seedDatabase();
+  const patient = getUser(db, 'patient');
+  const clinician = getUser(db, 'clinician');
+  const consultation = createConsultation(db, patient, {
+    requestedNeed: 'Manual refund state check',
+    tier: 'normal'
+  });
+  claimConsultation(db, clinician, consultation.id);
+  markConsultationPaid(db, patient, consultation.id);
+
+  const cancelled = cancelConsultation(db, patient, consultation.id, { reason: 'Patient cancelled' });
+  assert.equal(cancelled.consultationPayment.status, 'refund_required');
+  assert.equal(cancelled.consultationPayment.reconciliationStatus, 'manual_refund_required');
 });
 
 test('consultation workspace overview returns consultations with snapshot and timestamp', () => {
@@ -181,7 +249,7 @@ test('assigned clinician can access patient medical records while non-assigned c
   );
 });
 
-test('in-progress consultation can escalate tier and capture hold on completion', () => {
+test('paid consultation cannot change tier in-session and completes with its verified charge', () => {
   const db = seedDatabase();
   const patient = getUser(db, 'patient');
   const clinician = getUser(db, 'clinician');
@@ -193,20 +261,21 @@ test('in-progress consultation can escalate tier and capture hold on completion'
 
   claimConsultation(db, clinician, consultation.id);
   startConsultation(db, clinician, consultation.id);
-  const escalated = escalateConsultationTier(db, clinician, consultation.id, {
-    toTier: 'super_priority',
-    reason: 'Video assessment required for complex presentation'
-  });
-
-  assert.equal(escalated.tier, 'super_priority');
-  assert.equal(escalated.holdPayment.amount, 10000);
+  assert.throws(
+    () => escalateConsultationTier(db, clinician, consultation.id, {
+      toTier: 'super_priority',
+      reason: 'Video assessment required for complex presentation'
+    }),
+    /cannot be upgraded in-session/
+  );
+  assert.equal(consultation.tier, 'normal');
 
   const completed = completeConsultation(db, clinician, consultation.id);
   assert.equal(completed.status, 'COMPLETED');
-  assert.equal(completed.holdPayment.status, 'captured');
+  assert.equal(completed.consultationPayment.status, 'captured');
 });
 
-test('claim window sweep cancels stale requests and releases hold', () => {
+test('claim window sweep cancels stale requests without taking payment', () => {
   const db = seedDatabase();
   const patient = getUser(db, 'patient');
   const coordinator = getUser(db, 'coordinator');
@@ -223,10 +292,10 @@ test('claim window sweep cancels stale requests and releases hold', () => {
 
   const updated = listConsultations(db, coordinator).find((item) => item.id === consultation.id);
   assert.equal(updated.status, 'CANCELLED');
-  assert.equal(updated.holdPayment.status, 'released');
+  assert.equal(updated.consultationPayment, null);
 });
 
-test('manual cancellation releases hold without duplicating status history', () => {
+test('cancellation before checkout records no payment and keeps one status transition', () => {
   const db = seedDatabase();
   const patient = getUser(db, 'patient');
 
@@ -237,7 +306,7 @@ test('manual cancellation releases hold without duplicating status history', () 
   const cancelled = cancelConsultation(db, patient, consultation.id, { reason: 'No longer needed' });
 
   assert.equal(cancelled.status, 'CANCELLED');
-  assert.equal(cancelled.holdPayment.status, 'released');
+  assert.equal(cancelled.consultationPayment, null);
   assert.equal(cancelled.statusHistory.filter((item) => item.toStatus === 'CANCELLED').length, 1);
 });
 
@@ -613,7 +682,7 @@ test('consultation normalizes requested communication values from display labels
   assert.equal(session.channel, 'voice_call');
 });
 
-test('consultation lifecycle emits patient notifications for start, escalation, completion and timeout cancellation', () => {
+test('consultation lifecycle emits notifications and blocks paid tier escalation', () => {
   const db = seedDatabase();
   const patient = getUser(db, 'patient');
   const clinician = getUser(db, 'clinician');
@@ -626,10 +695,13 @@ test('consultation lifecycle emits patient notifications for start, escalation, 
 
   claimConsultation(db, clinician, consultation.id);
   startConsultation(db, clinician, consultation.id);
-  escalateConsultationTier(db, clinician, consultation.id, {
-    toTier: 'priority',
-    reason: 'Needs voice call support'
-  });
+  assert.throws(
+    () => escalateConsultationTier(db, clinician, consultation.id, {
+      toTier: 'priority',
+      reason: 'Needs voice call support'
+    }),
+    /cannot be upgraded in-session/
+  );
   completeConsultation(db, clinician, consultation.id);
 
   const stale = createConsultation(db, patient, {
@@ -645,7 +717,6 @@ test('consultation lifecycle emits patient notifications for start, escalation, 
     .map((item) => item.subject);
 
   assert.ok(subjects.includes('Consultation started'));
-  assert.ok(subjects.includes('Consultation tier updated'));
   assert.ok(subjects.includes('Consultation completed'));
   assert.ok(subjects.includes('Consultation cancelled'));
 });
@@ -1151,8 +1222,8 @@ test('consultation operational alerts surface stuck states and payment integrity
   claimConsultation(db, clinician, badCompleted.id);
   startConsultation(db, clinician, badCompleted.id);
   completeConsultation(db, clinician, badCompleted.id);
-  const badCompletedHold = db.payments.find((item) => item.consultationId === badCompleted.id && item.paymentType === 'consultation_hold');
-  badCompletedHold.status = 'held';
+  const badCompletedHold = db.payments.find((item) => item.consultationId === badCompleted.id && item.paymentType === 'consultation_charge');
+  badCompletedHold.status = 'pending';
 
   const terminalUnreconciled = createConsultation(db, patient, {
     tier: 'normal',
@@ -1162,7 +1233,7 @@ test('consultation operational alerts surface stuck states and payment integrity
   startConsultation(db, clinician, terminalUnreconciled.id);
   completeConsultation(db, clinician, terminalUnreconciled.id);
   const terminalHold = db.payments.find(
-    (item) => item.consultationId === terminalUnreconciled.id && item.paymentType === 'consultation_hold'
+    (item) => item.consultationId === terminalUnreconciled.id && item.paymentType === 'consultation_charge'
   );
   terminalHold.reconciliationStatus = 'unreconciled';
   terminalHold.updatedAt = new Date(Date.now() - 61 * 60 * 1000).toISOString();
@@ -1215,7 +1286,7 @@ test('consultation operational snapshot exposes median and hold release rate met
   assert.ok(snapshot.averageClaimTimeSeconds > 0);
   assert.ok(snapshot.medianClaimTimeSeconds > 0);
   assert.ok(snapshot.p90ClaimTimeSeconds >= snapshot.medianClaimTimeSeconds);
-  assert.ok(typeof snapshot.holdReleaseRatePercent === 'number');
+  assert.ok(typeof snapshot.manualRefundRatePercent === 'number');
   assert.ok(snapshot.riskDistribution);
   assert.ok(typeof snapshot.riskDistribution.critical === 'number');
   assert.ok(typeof snapshot.riskDistribution.warning === 'number');
@@ -1453,8 +1524,8 @@ test('consultation list risk-score sort prioritizes highest operational risk', (
 
   const riskyRow = db.consultations.find((item) => item.id === risky.id);
   riskyRow.claimWindowEndsAt = new Date(Date.now() + 5000).toISOString();
-  const riskyHold = db.payments.find((item) => item.consultationId === risky.id && item.paymentType === 'consultation_hold');
-  riskyHold.status = 'captured';
+  riskyRow.status = 'IN_PROGRESS';
+  riskyRow.tier = 'priority';
 
   const ordered = listConsultationsWithOptions(db, coordinator, { sort: 'risk_score' });
   assert.equal(ordered[0].id, risky.id);
@@ -1476,9 +1547,6 @@ test('consultation risk summary exposes readable top risk labels', () => {
 
   const row = db.consultations.find((item) => item.id === consultation.id);
   row.claimWindowEndsAt = new Date(Date.now() - 1000).toISOString();
-  const hold = db.payments.find((item) => item.consultationId === consultation.id && item.paymentType === 'consultation_hold');
-  hold.status = 'captured';
-
   const expanded = listConsultationsWithOptions(db, coordinator, { sort: 'risk_score' }).find((item) => item.id === consultation.id);
   assert.ok(expanded);
   assert.ok(expanded.riskSummary.flags.length >= 2);

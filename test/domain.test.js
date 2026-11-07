@@ -32,6 +32,10 @@ test('provider recommendations rank eligible available providers', () => {
   assert.equal(recommendations.length, 2);
   assert.equal(recommendations[0].name, 'Lagoon Specialist Hospital');
   assert.ok(recommendations[0].score > recommendations[1].score);
+  assert.ok(recommendations[0].scoreBreakdown.some((item) => item.factor === 'same_city'));
+
+  db.providers[0].onboardingStatus = 'suspended';
+  assert.equal(recommendProviders(db, referral).some((item) => item.id === db.providers[0].id), false);
 });
 
 test('referral access keeps finance users outside clinical records', () => {
