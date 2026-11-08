@@ -713,17 +713,32 @@ async function serveStatic(req, res, url) {
     res.end('Forbidden');
     return;
   }
-  const stream = createReadStream(filePath);
-  stream.on('error', () => {
-    createReadStream(join(publicDir, 'index.html'))
-      .on('error', () => {
-        res.writeHead(404, securityHeaders({ 'content-type': 'text/plain; charset=utf-8' }));
-        res.end('Not found');
-      })
-      .pipe(res);
-  });
-  res.writeHead(200, securityHeaders({ 'content-type': mimeTypes[extname(filePath)] || 'application/octet-stream' }));
-  stream.pipe(res);
+
+  const streamFile = (path, contentType, allowNotFoundFallback) => {
+    const stream = createReadStream(path);
+    stream.once('open', () => {
+      if (res.destroyed) {
+        stream.destroy();
+        return;
+      }
+      res.writeHead(200, securityHeaders({ 'content-type': contentType }));
+      stream.pipe(res);
+    });
+    stream.once('error', () => {
+      if (res.headersSent || res.writableEnded || res.destroyed) {
+        res.destroy();
+        return;
+      }
+      if (allowNotFoundFallback) {
+        streamFile(join(publicDir, 'index.html'), 'text/html; charset=utf-8', false);
+        return;
+      }
+      res.writeHead(404, securityHeaders({ 'content-type': 'text/plain; charset=utf-8' }));
+      res.end('Not found');
+    });
+  };
+
+  streamFile(filePath, mimeTypes[extname(filePath)] || 'application/octet-stream', true);
 }
 
 const server = http.createServer(async (req, res) => {
